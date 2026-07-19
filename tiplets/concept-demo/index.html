@@ -87,8 +87,16 @@
         <div class="mt-8 border-t border-zinc-200 pt-4">
             <h3 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Status</h3>
             <div class="flex items-center justify-between text-sm">
-                <span class="text-zinc-600">Active Motors:</span>
-                <span id="active-motor-count" class="font-mono text-zinc-400 font-medium">0 / 6</span>
+                <span class="text-zinc-600">Peak Intensity:</span>
+                <span id="motor-intensity" class="font-mono text-zinc-400 font-medium">0%</span>
+            </div>
+            <div class="grid grid-cols-6 gap-1.5 mt-3" aria-label="Individual motor intensity levels">
+                <div class="h-8 rounded-sm bg-zinc-100 overflow-hidden flex items-end"><span data-motor-level="1" class="block w-full h-0 bg-zinc-950"></span></div>
+                <div class="h-8 rounded-sm bg-zinc-100 overflow-hidden flex items-end"><span data-motor-level="2" class="block w-full h-0 bg-zinc-950"></span></div>
+                <div class="h-8 rounded-sm bg-zinc-100 overflow-hidden flex items-end"><span data-motor-level="3" class="block w-full h-0 bg-zinc-950"></span></div>
+                <div class="h-8 rounded-sm bg-zinc-100 overflow-hidden flex items-end"><span data-motor-level="4" class="block w-full h-0 bg-zinc-950"></span></div>
+                <div class="h-8 rounded-sm bg-zinc-100 overflow-hidden flex items-end"><span data-motor-level="5" class="block w-full h-0 bg-zinc-950"></span></div>
+                <div class="h-8 rounded-sm bg-zinc-100 overflow-hidden flex items-end"><span data-motor-level="6" class="block w-full h-0 bg-zinc-950"></span></div>
             </div>
         </div>
     </aside>
@@ -112,7 +120,8 @@
         const canvas = document.getElementById('env-canvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('simulation-container');
-        const activeCountEl = document.getElementById('active-motor-count');
+        const intensityEl = document.getElementById('motor-intensity');
+        const motorLevelEls = [...document.querySelectorAll('[data-motor-level]')];
         const instructionsEl = document.getElementById('instructions');
 
         // Simulation State
@@ -138,17 +147,20 @@
             spacingX: 18,
             spacingY: 22,
             easing: 0.15, // Lower = more "lag" / weight to the hand
-            outlinePadding: 16
+            outlinePadding: 16,
+            falloffRadius: 28,
+            intensitySmoothing: 0.22,
+            vibrationAmplitude: 2.5
         };
 
         // Generate the relative positions of the 6 motors from the center of the fingertip
         const motors = [
-            { id: 1, dx: -TIPLET_CONFIG.spacingX/2, dy: -TIPLET_CONFIG.spacingY },
-            { id: 2, dx: -TIPLET_CONFIG.spacingX/2, dy: 0 },
-            { id: 3, dx: -TIPLET_CONFIG.spacingX/2, dy: TIPLET_CONFIG.spacingY },
-            { id: 4, dx: TIPLET_CONFIG.spacingX/2,  dy: -TIPLET_CONFIG.spacingY },
-            { id: 5, dx: TIPLET_CONFIG.spacingX/2,  dy: 0 },
-            { id: 6, dx: TIPLET_CONFIG.spacingX/2,  dy: TIPLET_CONFIG.spacingY }
+            { id: 1, dx: -TIPLET_CONFIG.spacingX/2, dy: -TIPLET_CONFIG.spacingY, intensity: 0 },
+            { id: 2, dx: -TIPLET_CONFIG.spacingX/2, dy: 0, intensity: 0 },
+            { id: 3, dx: -TIPLET_CONFIG.spacingX/2, dy: TIPLET_CONFIG.spacingY, intensity: 0 },
+            { id: 4, dx: TIPLET_CONFIG.spacingX/2,  dy: -TIPLET_CONFIG.spacingY, intensity: 0 },
+            { id: 5, dx: TIPLET_CONFIG.spacingX/2,  dy: 0, intensity: 0 },
+            { id: 6, dx: TIPLET_CONFIG.spacingX/2,  dy: TIPLET_CONFIG.spacingY, intensity: 0 }
         ];
 
         let currentPath = new Path2D();
@@ -201,42 +213,111 @@
             updateMousePos(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: true });
 
+        function getPolygonVertices(shape, baseSize) {
+            const halfSize = baseSize / 2;
+
+            if (shape === 'square') {
+                return [
+                    { x: -halfSize, y: -halfSize },
+                    { x: halfSize, y: -halfSize },
+                    { x: halfSize, y: halfSize },
+                    { x: -halfSize, y: halfSize }
+                ];
+            }
+
+            if (shape === 'triangle') {
+                return [
+                    { x: 0, y: -halfSize },
+                    { x: halfSize, y: halfSize },
+                    { x: -halfSize, y: halfSize }
+                ];
+            }
+
+            if (shape === 'star') {
+                return Array.from({ length: 10 }, (_, index) => {
+                    const radius = index % 2 === 0 ? halfSize : halfSize / 2;
+                    const angle = -Math.PI / 2 + index * Math.PI / 5;
+                    return {
+                        x: Math.cos(angle) * radius,
+                        y: Math.sin(angle) * radius
+                    };
+                });
+            }
+
+            return [];
+        }
+
         function generatePath() {
             const path = new Path2D();
             const baseSize = 150 * state.scale; // Size of the object
 
             // We use math to draw shapes centered at 0,0. We will translate the context when drawing.
-            switch (state.shape) {
-                case 'square':
-                    path.rect(-baseSize/2, -baseSize/2, baseSize, baseSize);
-                    break;
-                case 'circle':
-                    path.arc(0, 0, baseSize/2, 0, Math.PI * 2);
-                    break;
-                case 'triangle':
-                    path.moveTo(0, -baseSize/2);
-                    path.lineTo(baseSize/2, baseSize/2);
-                    path.lineTo(-baseSize/2, baseSize/2);
-                    path.closePath();
-                    break;
-                case 'star':
-                    const spikes = 5;
-                    const outerRadius = baseSize/2;
-                    const innerRadius = baseSize/4;
-                    let rot = Math.PI / 2 * 3;
-                    let step = Math.PI / spikes;
-                    path.moveTo(0, -outerRadius);
-                    for (let i = 0; i < spikes; i++) {
-                        path.lineTo(Math.cos(rot) * outerRadius, Math.sin(rot) * outerRadius);
-                        rot += step;
-                        path.lineTo(Math.cos(rot) * innerRadius, Math.sin(rot) * innerRadius);
-                        rot += step;
-                    }
-                    path.lineTo(0, -outerRadius);
-                    path.closePath();
-                    break;
+            if (state.shape === 'circle') {
+                path.arc(0, 0, baseSize / 2, 0, Math.PI * 2);
+                return path;
             }
+
+            const vertices = getPolygonVertices(state.shape, baseSize);
+            if (vertices.length > 0) {
+                path.moveTo(vertices[0].x, vertices[0].y);
+                vertices.slice(1).forEach(vertex => path.lineTo(vertex.x, vertex.y));
+                path.closePath();
+            }
+
             return path;
+        }
+
+        function pointToSegmentDistance(point, start, end) {
+            const segmentX = end.x - start.x;
+            const segmentY = end.y - start.y;
+            const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+            if (lengthSquared === 0) {
+                return Math.hypot(point.x - start.x, point.y - start.y);
+            }
+
+            const projection = (
+                (point.x - start.x) * segmentX +
+                (point.y - start.y) * segmentY
+            ) / lengthSquared;
+            const t = Math.max(0, Math.min(1, projection));
+            const closestX = start.x + segmentX * t;
+            const closestY = start.y + segmentY * t;
+
+            return Math.hypot(point.x - closestX, point.y - closestY);
+        }
+
+        function distanceToShapeEdge(globalX, globalY) {
+            const offsetX = globalX - state.targetX;
+            const offsetY = globalY - state.targetY;
+            const cos = Math.cos(state.rotation);
+            const sin = Math.sin(state.rotation);
+            const localPoint = {
+                x: offsetX * cos + offsetY * sin,
+                y: -offsetX * sin + offsetY * cos
+            };
+            const baseSize = 150 * state.scale;
+
+            if (state.shape === 'circle') {
+                return Math.abs(Math.hypot(localPoint.x, localPoint.y) - baseSize / 2);
+            }
+
+            const vertices = getPolygonVertices(state.shape, baseSize);
+            return vertices.reduce((closestDistance, vertex, index) => {
+                const nextVertex = vertices[(index + 1) % vertices.length];
+                return Math.min(
+                    closestDistance,
+                    pointToSegmentDistance(localPoint, vertex, nextVertex)
+                );
+            }, Infinity);
+        }
+
+        function intensityAtPoint(globalX, globalY) {
+            const distance = distanceToShapeEdge(globalX, globalY);
+            const proximity = Math.max(0, 1 - distance / TIPLET_CONFIG.falloffRadius);
+
+            // Smoothstep produces a gentle physical ramp at both ends of the range.
+            return proximity * proximity * (3 - 2 * proximity);
         }
 
         function setShape(shapeName) {
@@ -305,34 +386,31 @@
             // Restore context for non-rotated operations
             ctx.restore();
 
-            // 2. Collision Detection (Spatiotemporal Modulation Check)
-            ctx.save();
-            ctx.translate(state.targetX, state.targetY);
-            ctx.rotate(state.rotation);
-            ctx.lineWidth = strokeWidth;
-
-            let activeCount = 0;
-            const dpr = window.devicePixelRatio || 1;
-
-            // Calculate global positions of motors and check collision
+            // 2. Continuous spatiotemporal modulation based on distance to the edge
+            let peakIntensity = 0;
             motors.forEach(motor => {
                 const globalX = state.handX + motor.dx;
                 const globalY = state.handY + motor.dy;
+                const targetIntensity = intensityAtPoint(globalX, globalY);
 
-                motor.isActive = ctx.isPointInStroke(currentPath, globalX * dpr, globalY * dpr);
-                if (motor.isActive) activeCount++;
+                motor.intensity += (
+                    targetIntensity - motor.intensity
+                ) * TIPLET_CONFIG.intensitySmoothing;
+                peakIntensity = Math.max(peakIntensity, motor.intensity);
             });
-            ctx.restore();
 
-            // Update UI Counter (Shadcn styling)
-            activeCountEl.innerText = `${activeCount} / 6`;
-            if(activeCount > 0) {
-                activeCountEl.classList.add('text-zinc-950');
-                activeCountEl.classList.remove('text-zinc-400');
+            // Update the aggregate readout and individual motor meters.
+            intensityEl.innerText = `${Math.round(peakIntensity * 100)}%`;
+            if (peakIntensity > 0.01) {
+                intensityEl.classList.add('text-zinc-950');
+                intensityEl.classList.remove('text-zinc-400');
             } else {
-                activeCountEl.classList.remove('text-zinc-950');
-                activeCountEl.classList.add('text-zinc-400');
+                intensityEl.classList.remove('text-zinc-950');
+                intensityEl.classList.add('text-zinc-400');
             }
+            motorLevelEls.forEach((level, index) => {
+                level.style.height = `${motors[index].intensity * 100}%`;
+            });
 
             ctx.save();
             ctx.translate(state.handX, state.handY);
@@ -351,27 +429,30 @@
 
             // Draw the 6 Motors
             motors.forEach(motor => {
+                const intensity = motor.intensity;
+                const vibration = TIPLET_CONFIG.vibrationAmplitude * intensity;
+                const vibX = (Math.random() - 0.5) * vibration;
+                const vibY = (Math.random() - 0.5) * vibration;
+                const shade = Math.round(244 - 235 * intensity);
+
+                ctx.save();
+                ctx.translate(vibX, vibY);
                 ctx.beginPath();
-                ctx.arc(motor.dx, motor.dy, TIPLET_CONFIG.dotRadius, 0, Math.PI * 2);
-
-                if (motor.isActive) {
-                    // Motor is ON (Vibrating)
-                    ctx.fillStyle = '#09090b'; // zinc-950 active
-
-                    // Simulate vibration with tiny random offset rendering
-                    const vibX = (Math.random() - 0.5) * 2;
-                    const vibY = (Math.random() - 0.5) * 2;
-                    ctx.translate(vibX, vibY);
-                    ctx.fill();
-                    ctx.translate(-vibX, -vibY); // reset
-                } else {
-                    // Motor is OFF
-                    ctx.fillStyle = '#f4f4f5'; // zinc-100 inactive
-                    ctx.strokeStyle = '#e4e4e7'; // zinc-200 border
-                    ctx.lineWidth = 1;
-                    ctx.fill();
-                    ctx.stroke();
-                }
+                ctx.arc(
+                    motor.dx,
+                    motor.dy,
+                    TIPLET_CONFIG.dotRadius + intensity,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fillStyle = `rgb(${shade}, ${shade}, ${Math.min(245, shade + 1)})`;
+                ctx.strokeStyle = `rgba(161, 161, 170, ${0.35 + intensity * 0.45})`;
+                ctx.lineWidth = 1;
+                ctx.shadowColor = `rgba(9, 9, 11, ${intensity * 0.25})`;
+                ctx.shadowBlur = intensity * 8;
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
             });
 
             ctx.restore();

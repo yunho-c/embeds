@@ -46,13 +46,6 @@
 <body class="h-screen w-screen flex flex-col md:flex-row bg-white text-zinc-950">
 
     <aside class="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-zinc-200 p-6 flex flex-col z-10 overflow-y-auto shrink-0 transition-all">
-        <div class="mb-8">
-            <h1 class="text-2xl font-semibold tracking-tight mb-2 text-zinc-950">TipLets Demo</h1>
-            <p class="text-sm text-zinc-500 leading-relaxed">
-                Move your cursor over the canvas to explore hidden shapes.
-            </p>
-        </div>
-
         <div class="space-y-6 flex-grow">
             <!-- Stimulus Selection -->
             <div>
@@ -104,6 +97,19 @@
     <main id="simulation-container" class="flex-grow relative h-[60vh] md:h-full touch-none">
         <canvas id="env-canvas" class="absolute inset-0 w-full h-full"></canvas>
 
+        <!-- Floating identity island -->
+        <header class="absolute top-4 md:top-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-xl pointer-events-none">
+            <div class="rounded-2xl border border-white/80 ring-1 ring-zinc-200/80 bg-white/90 backdrop-blur-md px-5 py-3.5 shadow-[0_16px_40px_-20px_rgba(9,9,11,0.45)]">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                    <h1 class="text-lg font-semibold tracking-tight text-zinc-950 whitespace-nowrap">TipLets Demo</h1>
+                    <span class="hidden sm:block h-7 w-px bg-zinc-200" aria-hidden="true"></span>
+                    <p class="mt-0.5 sm:mt-0 text-xs sm:text-sm leading-relaxed text-zinc-500">
+                        Move your cursor over the canvas to explore hidden shapes.
+                    </p>
+                </div>
+            </div>
+        </header>
+
         <!-- Instructional Overlay (Fades out on interaction) -->
         <div id="instructions" class="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-700">
             <div class="bg-white/95 backdrop-blur-sm px-6 py-5 rounded-xl border border-zinc-200 text-center shadow-lg">
@@ -123,6 +129,7 @@
         const intensityEl = document.getElementById('motor-intensity');
         const motorLevelEls = [...document.querySelectorAll('[data-motor-level]')];
         const instructionsEl = document.getElementById('instructions');
+        const ISLAND_CLEARANCE = 132;
 
         // Simulation State
         let state = {
@@ -179,12 +186,22 @@
 
             // Center initial stimulus
             if(state.targetX === 0) {
+                const initialRadius = 75 * state.scale;
+                const preferredY = Math.max(
+                    rect.height / 2,
+                    ISLAND_CLEARANCE + initialRadius
+                );
+                const maximumY = rect.height - initialRadius - 24;
+
                 state.targetX = rect.width / 2;
-                state.targetY = rect.height / 2;
+                state.targetY = Math.max(
+                    initialRadius,
+                    Math.min(preferredY, maximumY)
+                );
                 state.mouseX = rect.width / 2;
-                state.mouseY = rect.height / 2;
+                state.mouseY = state.targetY;
                 state.handX = rect.width / 2;
-                state.handY = rect.height / 2;
+                state.handY = state.targetY;
             }
         }
 
@@ -339,9 +356,15 @@
             const rect = container.getBoundingClientRect();
             // Keep it somewhat within bounds
             const padding = 150;
-            state.targetX = padding + Math.random() * (rect.width - padding * 2);
-            state.targetY = padding + Math.random() * (rect.height - padding * 2);
             state.scale = 0.7 + Math.random() * 0.8; // Scale between 0.7 and 1.5
+            const shapeRadius = 75 * state.scale;
+            const minimumY = Math.max(padding, ISLAND_CLEARANCE + shapeRadius);
+            const maximumY = rect.height - shapeRadius - 24;
+
+            state.targetX = padding + Math.random() * (rect.width - padding * 2);
+            state.targetY = minimumY < maximumY
+                ? minimumY + Math.random() * (maximumY - minimumY)
+                : Math.max(shapeRadius, maximumY);
             state.rotation = (Math.random() - 0.5) * Math.PI; // Random rotation
 
             currentPath = generatePath();

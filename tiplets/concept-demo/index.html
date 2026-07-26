@@ -40,10 +40,11 @@
 <body class="h-screen w-screen overflow-hidden bg-white text-zinc-950">
 
     <main id="simulation-container" class="relative h-full w-full touch-none">
+        <canvas id="trail-canvas" class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"></canvas>
         <canvas id="env-canvas" class="absolute inset-0 w-full h-full"></canvas>
 
         <!-- Floating identity and telemetry island -->
-        <header class="absolute top-4 md:top-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-xl pointer-events-none">
+        <header id="header-island" class="absolute top-4 md:top-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-xl pointer-events-none">
             <div class="rounded-2xl border border-white/80 ring-1 ring-zinc-200/80 bg-white/90 backdrop-blur-md px-5 py-3.5 shadow-[0_16px_40px_-20px_rgba(9,9,11,0.45)]">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:gap-4">
                     <h1 class="text-lg font-semibold tracking-tight text-zinc-950 whitespace-nowrap">TipLets Demo</h1>
@@ -83,11 +84,11 @@
         </div>
 
         <!-- Floating control island -->
-        <footer id="control-island" class="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-4xl">
+        <footer id="control-island" class="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-5xl">
             <div class="rounded-2xl border border-white/80 ring-1 ring-zinc-200/80 bg-white/90 backdrop-blur-md p-3 shadow-[0_16px_40px_-20px_rgba(9,9,11,0.45)] md:px-4">
-                <div class="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                     <fieldset class="min-w-0 flex-1">
-                        <legend class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 md:sr-only">Target stimulus</legend>
+                        <legend class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 lg:sr-only">Target stimulus</legend>
                         <div class="grid grid-cols-4 gap-1 rounded-xl bg-zinc-100 p-1">
                             <button type="button" onclick="setShape('square')" id="btn-square" class="shape-btn rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs font-medium text-zinc-600 transition-all hover:bg-white hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1">Square</button>
                             <button type="button" onclick="setShape('circle')" id="btn-circle" class="shape-btn rounded-lg border border-transparent bg-zinc-950 px-2 py-2 text-xs font-medium text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1">Circle</button>
@@ -96,19 +97,28 @@
                         </div>
                     </fieldset>
 
-                    <span class="hidden h-8 w-px bg-zinc-200 md:block" aria-hidden="true"></span>
+                    <span class="hidden h-8 w-px bg-zinc-200 lg:block" aria-hidden="true"></span>
 
-                    <div class="flex items-center justify-between gap-3 md:shrink-0">
-                        <label for="truth-toggle" class="flex cursor-pointer items-center gap-2 rounded-xl px-1 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:gap-3 sm:px-2">
-                            <span class="whitespace-nowrap sm:hidden">Truth</span>
-                            <span class="hidden whitespace-nowrap sm:inline">Show Ground Truth</span>
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:shrink-0 lg:items-center">
+                        <label id="trail-control" for="trail-toggle" class="flex cursor-pointer items-center justify-between gap-2 rounded-xl px-1 py-2 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-100 sm:gap-3 sm:px-2">
+                            <span class="whitespace-nowrap sm:hidden">Trail</span>
+                            <span class="hidden whitespace-nowrap sm:inline">Show Trail</span>
                             <span class="relative inline-block w-10 shrink-0 select-none align-middle">
-                                <input type="checkbox" name="toggle" id="truth-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 border-zinc-200 bg-white cursor-pointer transition-all duration-200 ease-in-out" checked/>
+                                <input type="checkbox" name="trail" id="trail-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 border-zinc-200 bg-white cursor-pointer transition-all duration-200 ease-in-out" checked/>
                                 <span class="toggle-label block h-5 overflow-hidden rounded-full bg-zinc-200 transition-colors duration-200 ease-in-out"></span>
                             </span>
                         </label>
 
-                        <button type="button" onclick="randomizeTransform()" class="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-zinc-950 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 sm:gap-2 sm:px-3.5">
+                        <label for="truth-toggle" class="flex cursor-pointer items-center justify-between gap-2 rounded-xl px-1 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:gap-3 sm:px-2">
+                            <span class="whitespace-nowrap sm:hidden">Truth</span>
+                            <span class="hidden whitespace-nowrap sm:inline">Show Ground Truth</span>
+                            <span class="relative inline-block w-10 shrink-0 select-none align-middle">
+                                <input type="checkbox" name="truth" id="truth-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 border-zinc-200 bg-white cursor-pointer transition-all duration-200 ease-in-out"/>
+                                <span class="toggle-label block h-5 overflow-hidden rounded-full bg-zinc-200 transition-colors duration-200 ease-in-out"></span>
+                            </span>
+                        </label>
+
+                        <button type="button" onclick="randomizeTransform()" class="col-span-2 flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-zinc-950 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 sm:col-span-1 sm:gap-2 sm:px-3.5">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             <span>Randomize <span class="hidden sm:inline">Position</span></span>
                         </button>
@@ -119,22 +129,27 @@
     </main>
 
     <script>
+        const trailCanvas = document.getElementById('trail-canvas');
+        const trailCtx = trailCanvas.getContext('2d');
         const canvas = document.getElementById('env-canvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('simulation-container');
         const intensityEl = document.getElementById('motor-intensity');
         const motorLevelEls = [...document.querySelectorAll('[data-motor-level]')];
         const instructionsEl = document.getElementById('instructions');
+        const headerIslandEl = document.getElementById('header-island');
         const headerDescriptionEl = document.getElementById('header-description');
         const headerIntensityEl = document.getElementById('header-intensity');
         const controlIslandEl = document.getElementById('control-island');
-        const TOP_ISLAND_CLEARANCE = 132;
-        const BOTTOM_ISLAND_CLEARANCE = 156;
+        const trailToggleEl = document.getElementById('trail-toggle');
+        const trailControlEl = document.getElementById('trail-control');
+        const truthToggleEl = document.getElementById('truth-toggle');
 
         // Simulation State
         let state = {
             shape: 'circle',
-            showTruth: true,
+            showTruth: false,
+            showTrail: true,
             hasInteracted: false,
             // Shape transformation data
             targetX: 0,
@@ -177,23 +192,57 @@
             return Math.max(minimum, Math.min(value, maximum));
         }
 
+        function getSafeBounds(containerRect, shapeRadius) {
+            const headerRect = headerIslandEl.getBoundingClientRect();
+            const footerRect = controlIslandEl.getBoundingClientRect();
+
+            return {
+                minimumX: shapeRadius + 24,
+                maximumX: containerRect.width - shapeRadius - 24,
+                minimumY: headerRect.bottom - containerRect.top + shapeRadius + 24,
+                maximumY: footerRect.top - containerRect.top - shapeRadius - 24
+            };
+        }
+
+        function resetTrailTracking() {
+            motors.forEach(motor => {
+                motor.trailX = null;
+                motor.trailY = null;
+                motor.trailIntensity = 0;
+            });
+        }
+
+        function clearTrail() {
+            trailCtx.save();
+            trailCtx.setTransform(1, 0, 0, 1, 0, 0);
+            trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+            trailCtx.restore();
+            resetTrailTracking();
+        }
+
         function resizeCanvas() {
             // High DPI display support for crisp rendering
             const dpr = window.devicePixelRatio || 1;
             const rect = container.getBoundingClientRect();
 
+            trailCanvas.width = rect.width * dpr;
+            trailCanvas.height = rect.height * dpr;
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
 
+            trailCtx.scale(dpr, dpr);
             ctx.scale(dpr, dpr);
+            trailCanvas.style.width = `${rect.width}px`;
+            trailCanvas.style.height = `${rect.height}px`;
             canvas.style.width = `${rect.width}px`;
             canvas.style.height = `${rect.height}px`;
+            resetTrailTracking();
 
             const shapeRadius = 75 * state.scale;
-            const minimumX = shapeRadius + 24;
-            const maximumX = rect.width - shapeRadius - 24;
-            const minimumY = TOP_ISLAND_CLEARANCE + shapeRadius;
-            const maximumY = rect.height - BOTTOM_ISLAND_CLEARANCE - shapeRadius;
+            const { minimumX, maximumX, minimumY, maximumY } = getSafeBounds(
+                rect,
+                shapeRadius
+            );
 
             // Center the initial stimulus within the space between both islands.
             if(state.targetX === 0) {
@@ -356,6 +405,55 @@
             return proximity * proximity * (3 - 2 * proximity);
         }
 
+        function drawMotorTrail(motor, globalX, globalY) {
+            const intensity = motor.intensity;
+            const wasActive = motor.trailIntensity > 0.035;
+            const hasPreviousPoint = Number.isFinite(motor.trailX) && Number.isFinite(motor.trailY);
+            const startX = wasActive && hasPreviousPoint ? motor.trailX : globalX;
+            const startY = wasActive && hasPreviousPoint ? motor.trailY : globalY;
+
+            motor.trailX = globalX;
+            motor.trailY = globalY;
+            motor.trailIntensity = state.showTrail ? intensity : 0;
+
+            if (!state.showTrail || intensity <= 0.035) return;
+
+            const deltaX = globalX - startX;
+            const deltaY = globalY - startY;
+            const distance = Math.hypot(deltaX, deltaY);
+            const steps = Math.min(24, Math.max(1, Math.ceil(distance / 2)));
+            const pressure = Math.pow(intensity, 0.75);
+            const grainCount = 1 + Math.floor(pressure * 3);
+
+            trailCtx.save();
+            trailCtx.lineCap = 'round';
+
+            for (let step = 0; step <= steps; step++) {
+                const progress = steps === 0 ? 1 : step / steps;
+                const baseX = startX + deltaX * progress;
+                const baseY = startY + deltaY * progress;
+
+                for (let grain = 0; grain < grainCount; grain++) {
+                    const jitterRadius = 3.5 - pressure;
+                    const jitterX = (Math.random() - 0.5) * jitterRadius;
+                    const jitterY = (Math.random() - 0.5) * jitterRadius;
+                    const angle = (Math.random() - 0.5) * Math.PI;
+                    const grainLength = 0.8 + Math.random() * (1.5 + pressure * 2);
+                    const halfX = Math.cos(angle) * grainLength / 2;
+                    const halfY = Math.sin(angle) * grainLength / 2;
+
+                    trailCtx.beginPath();
+                    trailCtx.moveTo(baseX + jitterX - halfX, baseY + jitterY - halfY);
+                    trailCtx.lineTo(baseX + jitterX + halfX, baseY + jitterY + halfY);
+                    trailCtx.lineWidth = 0.35 + Math.random() * (0.65 + pressure * 0.7);
+                    trailCtx.strokeStyle = `rgba(63, 63, 70, ${0.018 + pressure * 0.05})`;
+                    trailCtx.stroke();
+                }
+            }
+
+            trailCtx.restore();
+        }
+
         function setShape(shapeName) {
             state.shape = shapeName;
 
@@ -377,16 +475,17 @@
             activeBtn.classList.add(...activeClasses);
 
             currentPath = generatePath();
+            clearTrail();
         }
 
         function randomizeTransform() {
             const rect = container.getBoundingClientRect();
             state.scale = 0.7 + Math.random() * 0.8; // Scale between 0.7 and 1.5
             const shapeRadius = 75 * state.scale;
-            const minimumX = shapeRadius + 24;
-            const maximumX = rect.width - shapeRadius - 24;
-            const minimumY = TOP_ISLAND_CLEARANCE + shapeRadius;
-            const maximumY = rect.height - BOTTOM_ISLAND_CLEARANCE - shapeRadius;
+            const { minimumX, maximumX, minimumY, maximumY } = getSafeBounds(
+                rect,
+                shapeRadius
+            );
 
             state.targetX = minimumX < maximumX
                 ? minimumX + Math.random() * (maximumX - minimumX)
@@ -397,6 +496,7 @@
             state.rotation = (Math.random() - 0.5) * Math.PI; // Random rotation
 
             currentPath = generatePath();
+            clearTrail();
         }
 
         function revealHeaderIntensity() {
@@ -406,8 +506,28 @@
             headerIntensityEl.setAttribute('aria-hidden', 'false');
         }
 
-        document.getElementById('truth-toggle').addEventListener('change', (e) => {
-            state.showTruth = e.target.checked;
+        trailToggleEl.addEventListener('change', (event) => {
+            state.showTrail = event.target.checked;
+            if (!state.showTrail) clearTrail();
+        });
+
+        truthToggleEl.addEventListener('change', (event) => {
+            state.showTruth = event.target.checked;
+
+            if (state.showTruth) {
+                trailToggleEl.checked = false;
+                trailToggleEl.disabled = true;
+                trailControlEl.classList.add('cursor-not-allowed', 'opacity-40');
+                trailControlEl.classList.remove('cursor-pointer', 'hover:bg-zinc-100');
+                trailControlEl.setAttribute('aria-disabled', 'true');
+                state.showTrail = false;
+                clearTrail();
+            } else {
+                trailToggleEl.disabled = false;
+                trailControlEl.classList.remove('cursor-not-allowed', 'opacity-40');
+                trailControlEl.classList.add('cursor-pointer', 'hover:bg-zinc-100');
+                trailControlEl.setAttribute('aria-disabled', 'false');
+            }
         });
 
         function animate() {
@@ -455,6 +575,7 @@
                 motor.intensity += (
                     targetIntensity - motor.intensity
                 ) * TIPLET_CONFIG.intensitySmoothing;
+                drawMotorTrail(motor, globalX, globalY);
                 peakIntensity = Math.max(peakIntensity, motor.intensity);
             });
 

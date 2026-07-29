@@ -3,31 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>TipLets Interactive Demo</title>
+    <script>
+        (() => {
+            const requestedTheme = new URLSearchParams(window.location.search).get('theme');
+            const theme = requestedTheme === 'light' || requestedTheme === 'dark'
+                ? requestedTheme
+                : window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light';
+
+            document.documentElement.dataset.theme = theme;
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            color-scheme: light;
+            --canvas-bg: #fafafa;
+            --grid-dot: #e4e4e7;
+            --surface: rgba(255, 255, 255, 0.9);
+            --surface-solid: #ffffff;
+            --surface-muted: #f4f4f5;
+            --surface-hover: #ffffff;
+            --border: #e4e4e7;
+            --border-highlight: rgba(255, 255, 255, 0.8);
+            --text: #09090b;
+            --text-muted: #71717a;
+            --text-faint: #a1a1aa;
+            --accent: #09090b;
+            --accent-hover: #27272a;
+            --accent-contrast: #ffffff;
+            --shadow: rgba(9, 9, 11, 0.45);
+        }
+
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --canvas-bg: #09090b;
+            --grid-dot: #27272a;
+            --surface: rgba(24, 24, 27, 0.9);
+            --surface-solid: #18181b;
+            --surface-muted: #27272a;
+            --surface-hover: #3f3f46;
+            --border: #3f3f46;
+            --border-highlight: rgba(82, 82, 91, 0.7);
+            --text: #fafafa;
+            --text-muted: #a1a1aa;
+            --text-faint: #71717a;
+            --accent: #fafafa;
+            --accent-hover: #e4e4e7;
+            --accent-contrast: #18181b;
+            --shadow: rgba(0, 0, 0, 0.72);
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             overflow: hidden; /* Prevent scrolling on desktop */
+            background: var(--canvas-bg);
+            color: var(--text);
         }
 
         /* Custom styles for the interactive area */
         #simulation-container {
             position: relative;
             cursor: crosshair;
-            background-color: #fafafa; /* zinc-50 equivalent */
-            background-image: radial-gradient(#e4e4e7 1px, transparent 0);
+            background-color: var(--canvas-bg);
+            background-image: radial-gradient(var(--grid-dot) 1px, transparent 0);
             background-size: 24px 24px;
         }
 
-        /* Custom toggle switch styling - Shadcn style */
-        .toggle-checkbox:checked {
-            right: 0;
-            border-color: #09090b;
+        .theme-island {
+            border-color: var(--border-highlight);
+            background: var(--surface);
+            box-shadow: 0 16px 40px -20px var(--shadow), 0 0 0 1px var(--border);
         }
+
+        .theme-instructions {
+            border-color: var(--border);
+            background: color-mix(in srgb, var(--surface-solid) 95%, transparent);
+            box-shadow: 0 12px 28px -14px var(--shadow);
+        }
+
+        .theme-title,
+        .theme-strong {
+            color: var(--text);
+        }
+
+        .theme-muted {
+            color: var(--text-muted);
+        }
+
+        .theme-faint,
+        .theme-intensity {
+            color: var(--text-faint);
+        }
+
+        .theme-intensity.is-active {
+            color: var(--text);
+        }
+
+        .theme-divider {
+            background: var(--border);
+        }
+
+        .theme-meter-track,
+        .theme-segment {
+            background: var(--surface-muted);
+        }
+
+        .theme-meter-fill {
+            background: var(--accent);
+        }
+
+        .theme-shape-button {
+            background: transparent;
+            color: var(--text-muted);
+        }
+
+        .theme-shape-button:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+
+        .theme-shape-button:focus-visible,
+        .theme-primary-button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .theme-shape-button.is-active {
+            background: var(--accent);
+            color: var(--accent-contrast);
+            box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow) 35%, transparent);
+        }
+
+        .theme-control-label {
+            color: var(--text-muted);
+        }
+
+        .theme-control-label:not(.is-disabled):hover {
+            background: var(--surface-muted);
+        }
+
+        .theme-primary-button {
+            background: var(--accent);
+            color: var(--accent-contrast);
+        }
+
+        .theme-primary-button:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Custom toggle switch styling - Shadcn style */
+        .toggle-checkbox {
+            left: 0;
+            border-color: var(--border);
+            background: var(--surface-solid);
+        }
+
+        .toggle-label {
+            background: var(--border);
+        }
+
+        .toggle-checkbox:checked {
+            left: auto;
+            right: 0;
+            border-color: var(--accent);
+        }
+
         .toggle-checkbox:checked + .toggle-label {
-            background-color: #09090b;
+            background-color: var(--accent);
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -37,7 +185,7 @@
         }
     </style>
 </head>
-<body class="h-screen w-screen overflow-hidden bg-white text-zinc-950">
+<body class="h-screen w-screen overflow-hidden">
 
     <main id="simulation-container" class="relative h-full w-full touch-none">
         <canvas id="trail-canvas" class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"></canvas>
@@ -45,26 +193,26 @@
 
         <!-- Floating identity and telemetry island -->
         <header id="header-island" class="absolute top-4 md:top-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-xl pointer-events-none">
-            <div class="rounded-2xl border border-white/80 ring-1 ring-zinc-200/80 bg-white/90 backdrop-blur-md px-5 py-3.5 shadow-[0_16px_40px_-20px_rgba(9,9,11,0.45)]">
+            <div class="theme-island rounded-2xl border backdrop-blur-md px-5 py-3.5">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                    <h1 class="text-lg font-semibold tracking-tight text-zinc-950 whitespace-nowrap">TipLets Demo</h1>
-                    <span class="hidden sm:block h-7 w-px bg-zinc-200" aria-hidden="true"></span>
+                    <h1 class="theme-title text-lg font-semibold tracking-tight whitespace-nowrap">TipLets Demo</h1>
+                    <span class="theme-divider hidden sm:block h-7 w-px" aria-hidden="true"></span>
                     <div class="relative mt-0.5 h-10 w-full overflow-hidden sm:mt-0 sm:h-8 sm:min-w-0 sm:flex-1">
-                        <p id="header-description" class="header-transition absolute inset-0 flex items-center text-xs sm:text-sm leading-relaxed text-zinc-500 transition-all duration-500 ease-out">
+                        <p id="header-description" class="theme-muted header-transition absolute inset-0 flex items-center text-xs sm:text-sm leading-relaxed transition-all duration-500 ease-out">
                             Move your cursor over the canvas to explore hidden shapes.
                         </p>
                         <div id="header-intensity" class="header-transition absolute inset-0 flex items-center gap-3 opacity-0 translate-y-2 transition-all duration-500 ease-out" aria-hidden="true">
                             <div class="shrink-0 leading-none">
-                                <span class="block text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Peak</span>
-                                <span id="motor-intensity" class="mt-1 block font-mono text-sm font-medium text-zinc-400">0%</span>
+                                <span class="theme-faint block text-[9px] font-semibold uppercase tracking-[0.14em]">Peak</span>
+                                <span id="motor-intensity" class="theme-intensity mt-1 block font-mono text-sm font-medium">0%</span>
                             </div>
                             <div class="grid h-7 min-w-0 flex-1 grid-cols-6 gap-1" aria-label="Individual motor intensity levels">
-                                <div class="flex items-end overflow-hidden rounded-[3px] bg-zinc-100"><span data-motor-level="1" class="block h-0 w-full bg-zinc-950"></span></div>
-                                <div class="flex items-end overflow-hidden rounded-[3px] bg-zinc-100"><span data-motor-level="2" class="block h-0 w-full bg-zinc-950"></span></div>
-                                <div class="flex items-end overflow-hidden rounded-[3px] bg-zinc-100"><span data-motor-level="3" class="block h-0 w-full bg-zinc-950"></span></div>
-                                <div class="flex items-end overflow-hidden rounded-[3px] bg-zinc-100"><span data-motor-level="4" class="block h-0 w-full bg-zinc-950"></span></div>
-                                <div class="flex items-end overflow-hidden rounded-[3px] bg-zinc-100"><span data-motor-level="5" class="block h-0 w-full bg-zinc-950"></span></div>
-                                <div class="flex items-end overflow-hidden rounded-[3px] bg-zinc-100"><span data-motor-level="6" class="block h-0 w-full bg-zinc-950"></span></div>
+                                <div class="theme-meter-track flex items-end overflow-hidden rounded-[3px]"><span data-motor-level="1" class="theme-meter-fill block h-0 w-full"></span></div>
+                                <div class="theme-meter-track flex items-end overflow-hidden rounded-[3px]"><span data-motor-level="2" class="theme-meter-fill block h-0 w-full"></span></div>
+                                <div class="theme-meter-track flex items-end overflow-hidden rounded-[3px]"><span data-motor-level="3" class="theme-meter-fill block h-0 w-full"></span></div>
+                                <div class="theme-meter-track flex items-end overflow-hidden rounded-[3px]"><span data-motor-level="4" class="theme-meter-fill block h-0 w-full"></span></div>
+                                <div class="theme-meter-track flex items-end overflow-hidden rounded-[3px]"><span data-motor-level="5" class="theme-meter-fill block h-0 w-full"></span></div>
+                                <div class="theme-meter-track flex items-end overflow-hidden rounded-[3px]"><span data-motor-level="6" class="theme-meter-fill block h-0 w-full"></span></div>
                             </div>
                         </div>
                     </div>
@@ -74,51 +222,51 @@
 
         <!-- Instructional Overlay (Fades out on interaction) -->
         <div id="instructions" class="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-700">
-            <div class="bg-white/95 backdrop-blur-sm px-6 py-5 rounded-xl border border-zinc-200 text-center shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto mb-3 text-zinc-900 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="theme-instructions backdrop-blur-sm px-6 py-5 rounded-xl border text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="theme-strong h-6 w-6 mx-auto mb-3 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                 </svg>
-                <p class="font-semibold text-zinc-900">Move cursor to explore</p>
-                <p class="text-sm text-zinc-500 mt-1">Touch or mouse</p>
+                <p class="theme-strong font-semibold">Move cursor to explore</p>
+                <p class="theme-muted text-sm mt-1">Touch or mouse</p>
             </div>
         </div>
 
         <!-- Floating control island -->
         <footer id="control-island" class="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-5xl">
-            <div class="rounded-2xl border border-white/80 ring-1 ring-zinc-200/80 bg-white/90 backdrop-blur-md p-3 shadow-[0_16px_40px_-20px_rgba(9,9,11,0.45)] md:px-4">
+            <div class="theme-island rounded-2xl border backdrop-blur-md p-3 md:px-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                     <fieldset class="min-w-0 flex-1">
-                        <legend class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 lg:sr-only">Target stimulus</legend>
-                        <div class="grid grid-cols-4 gap-1 rounded-xl bg-zinc-100 p-1">
-                            <button type="button" onclick="setShape('square')" id="btn-square" class="shape-btn rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs font-medium text-zinc-600 transition-all hover:bg-white hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1">Square</button>
-                            <button type="button" onclick="setShape('circle')" id="btn-circle" class="shape-btn rounded-lg border border-transparent bg-zinc-950 px-2 py-2 text-xs font-medium text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1">Circle</button>
-                            <button type="button" onclick="setShape('triangle')" id="btn-triangle" class="shape-btn rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs font-medium text-zinc-600 transition-all hover:bg-white hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1">Triangle</button>
-                            <button type="button" onclick="setShape('star')" id="btn-star" class="shape-btn rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs font-medium text-zinc-600 transition-all hover:bg-white hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1">Star</button>
+                        <legend class="theme-faint mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] lg:sr-only">Target stimulus</legend>
+                        <div class="theme-segment grid grid-cols-4 gap-1 rounded-xl p-1">
+                            <button type="button" onclick="setShape('square')" id="btn-square" class="theme-shape-button shape-btn rounded-lg border border-transparent px-2 py-2 text-xs font-medium transition-all focus:outline-none">Square</button>
+                            <button type="button" onclick="setShape('circle')" id="btn-circle" class="theme-shape-button shape-btn is-active rounded-lg border border-transparent px-2 py-2 text-xs font-medium transition-all focus:outline-none">Circle</button>
+                            <button type="button" onclick="setShape('triangle')" id="btn-triangle" class="theme-shape-button shape-btn rounded-lg border border-transparent px-2 py-2 text-xs font-medium transition-all focus:outline-none">Triangle</button>
+                            <button type="button" onclick="setShape('star')" id="btn-star" class="theme-shape-button shape-btn rounded-lg border border-transparent px-2 py-2 text-xs font-medium transition-all focus:outline-none">Star</button>
                         </div>
                     </fieldset>
 
-                    <span class="hidden h-8 w-px bg-zinc-200 lg:block" aria-hidden="true"></span>
+                    <span class="theme-divider hidden h-8 w-px lg:block" aria-hidden="true"></span>
 
                     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:shrink-0 lg:items-center">
-                        <label id="trail-control" for="trail-toggle" class="flex cursor-pointer items-center justify-between gap-2 rounded-xl px-1 py-2 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-100 sm:gap-3 sm:px-2">
+                        <label id="trail-control" for="trail-toggle" class="theme-control-label flex cursor-pointer items-center justify-between gap-2 rounded-xl px-1 py-2 text-sm font-medium transition-all sm:gap-3 sm:px-2">
                             <span class="whitespace-nowrap sm:hidden">Trail</span>
                             <span class="hidden whitespace-nowrap sm:inline">Show Trail</span>
                             <span class="relative inline-block w-10 shrink-0 select-none align-middle">
-                                <input type="checkbox" name="trail" id="trail-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 border-zinc-200 bg-white cursor-pointer transition-all duration-200 ease-in-out" checked/>
-                                <span class="toggle-label block h-5 overflow-hidden rounded-full bg-zinc-200 transition-colors duration-200 ease-in-out"></span>
+                                <input type="checkbox" name="trail" id="trail-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 cursor-pointer transition-all duration-200 ease-in-out" checked/>
+                                <span class="toggle-label block h-5 overflow-hidden rounded-full transition-colors duration-200 ease-in-out"></span>
                             </span>
                         </label>
 
-                        <label for="truth-toggle" class="flex cursor-pointer items-center justify-between gap-2 rounded-xl px-1 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:gap-3 sm:px-2">
+                        <label for="truth-toggle" class="theme-control-label flex cursor-pointer items-center justify-between gap-2 rounded-xl px-1 py-2 text-sm font-medium transition-colors sm:gap-3 sm:px-2">
                             <span class="whitespace-nowrap sm:hidden">Truth</span>
                             <span class="hidden whitespace-nowrap sm:inline">Show Ground Truth</span>
                             <span class="relative inline-block w-10 shrink-0 select-none align-middle">
-                                <input type="checkbox" name="truth" id="truth-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 border-zinc-200 bg-white cursor-pointer transition-all duration-200 ease-in-out"/>
-                                <span class="toggle-label block h-5 overflow-hidden rounded-full bg-zinc-200 transition-colors duration-200 ease-in-out"></span>
+                                <input type="checkbox" name="truth" id="truth-toggle" class="toggle-checkbox absolute z-10 block h-5 w-5 appearance-none rounded-full border-2 cursor-pointer transition-all duration-200 ease-in-out"/>
+                                <span class="toggle-label block h-5 overflow-hidden rounded-full transition-colors duration-200 ease-in-out"></span>
                             </span>
                         </label>
 
-                        <button type="button" onclick="randomizeTransform()" class="col-span-2 flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-zinc-950 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 sm:col-span-1 sm:gap-2 sm:px-3.5">
+                        <button type="button" onclick="randomizeTransform()" class="theme-primary-button col-span-2 flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium shadow-sm transition-all focus:outline-none sm:col-span-1 sm:gap-2 sm:px-3.5">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             <span>Randomize <span class="hidden sm:inline">Position</span></span>
                         </button>
@@ -144,6 +292,33 @@
         const trailToggleEl = document.getElementById('trail-toggle');
         const trailControlEl = document.getElementById('trail-control');
         const truthToggleEl = document.getElementById('truth-toggle');
+
+        const THEME_PALETTES = {
+            light: {
+                trail: '63, 63, 70',
+                truthWide: 'rgba(228, 228, 231, 0.8)',
+                truthCore: 'rgba(9, 9, 11, 1)',
+                boardFill: 'rgba(255, 255, 255, 0.9)',
+                boardStroke: 'rgba(228, 228, 231, 1)',
+                motorInactive: 244,
+                motorActive: 9,
+                motorStroke: '161, 161, 170',
+                motorShadow: '9, 9, 11'
+            },
+            dark: {
+                trail: '212, 212, 216',
+                truthWide: 'rgba(63, 63, 70, 0.9)',
+                truthCore: 'rgba(250, 250, 250, 1)',
+                boardFill: 'rgba(24, 24, 27, 0.92)',
+                boardStroke: 'rgba(63, 63, 70, 1)',
+                motorInactive: 39,
+                motorActive: 250,
+                motorStroke: '113, 113, 122',
+                motorShadow: '250, 250, 250'
+            }
+        };
+        const theme = document.documentElement.dataset.theme || 'light';
+        const palette = THEME_PALETTES[theme];
 
         // Simulation State
         let state = {
@@ -446,7 +621,7 @@
                     trailCtx.moveTo(baseX + jitterX - halfX, baseY + jitterY - halfY);
                     trailCtx.lineTo(baseX + jitterX + halfX, baseY + jitterY + halfY);
                     trailCtx.lineWidth = 0.35 + Math.random() * (0.65 + pressure * 0.7);
-                    trailCtx.strokeStyle = `rgba(63, 63, 70, ${0.018 + pressure * 0.05})`;
+                    trailCtx.strokeStyle = `rgba(${palette.trail}, ${0.018 + pressure * 0.05})`;
                     trailCtx.stroke();
                 }
             }
@@ -457,22 +632,10 @@
         function setShape(shapeName) {
             state.shape = shapeName;
 
-            const activeClasses = ['bg-zinc-950', 'text-white', 'shadow-sm'];
-            const inactiveClasses = [
-                'bg-transparent',
-                'text-zinc-600',
-                'hover:bg-white',
-                'hover:text-zinc-950'
-            ];
-
             // Update the segmented target control.
             document.querySelectorAll('.shape-btn').forEach(btn => {
-                btn.classList.remove(...activeClasses);
-                btn.classList.add(...inactiveClasses);
+                btn.classList.toggle('is-active', btn.id === `btn-${shapeName}`);
             });
-            const activeBtn = document.getElementById(`btn-${shapeName}`);
-            activeBtn.classList.remove(...inactiveClasses);
-            activeBtn.classList.add(...activeClasses);
 
             currentPath = generatePath();
             clearTrail();
@@ -517,15 +680,15 @@
             if (state.showTruth) {
                 trailToggleEl.checked = false;
                 trailToggleEl.disabled = true;
-                trailControlEl.classList.add('cursor-not-allowed', 'opacity-40');
-                trailControlEl.classList.remove('cursor-pointer', 'hover:bg-zinc-100');
+                trailControlEl.classList.add('is-disabled', 'cursor-not-allowed', 'opacity-40');
+                trailControlEl.classList.remove('cursor-pointer');
                 trailControlEl.setAttribute('aria-disabled', 'true');
                 state.showTrail = false;
                 clearTrail();
             } else {
                 trailToggleEl.disabled = false;
-                trailControlEl.classList.remove('cursor-not-allowed', 'opacity-40');
-                trailControlEl.classList.add('cursor-pointer', 'hover:bg-zinc-100');
+                trailControlEl.classList.remove('is-disabled', 'cursor-not-allowed', 'opacity-40');
+                trailControlEl.classList.add('cursor-pointer');
                 trailControlEl.setAttribute('aria-disabled', 'false');
             }
         });
@@ -552,12 +715,12 @@
 
             if (state.showTruth) {
                 // Subtle wide background stroke (replaces neon glow)
-                ctx.strokeStyle = 'rgba(228, 228, 231, 0.8)'; // zinc-200
+                ctx.strokeStyle = palette.truthWide;
                 ctx.shadowBlur = 0;
                 ctx.stroke(currentPath);
 
                 // Solid core line
-                ctx.strokeStyle = 'rgba(9, 9, 11, 1)'; // zinc-950
+                ctx.strokeStyle = palette.truthCore;
                 ctx.lineWidth = 3;
                 ctx.stroke(currentPath);
             }
@@ -581,13 +744,7 @@
 
             // Update the aggregate readout and individual motor meters.
             intensityEl.innerText = `${Math.round(peakIntensity * 100)}%`;
-            if (peakIntensity > 0.01) {
-                intensityEl.classList.add('text-zinc-950');
-                intensityEl.classList.remove('text-zinc-400');
-            } else {
-                intensityEl.classList.remove('text-zinc-950');
-                intensityEl.classList.add('text-zinc-400');
-            }
+            intensityEl.classList.toggle('is-active', peakIntensity > 0.01);
             motorLevelEls.forEach((level, index) => {
                 level.style.height = `${motors[index].intensity * 100}%`;
             });
@@ -601,8 +758,8 @@
 
             ctx.beginPath();
             ctx.roundRect(-boardWidth/2, -boardHeight/2, boardWidth, boardHeight, 12);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // white board
-            ctx.strokeStyle = 'rgba(228, 228, 231, 1)'; // zinc-200 border
+            ctx.fillStyle = palette.boardFill;
+            ctx.strokeStyle = palette.boardStroke;
             ctx.lineWidth = 1;
             ctx.fill();
             ctx.stroke();
@@ -613,7 +770,10 @@
                 const vibration = TIPLET_CONFIG.vibrationAmplitude * intensity;
                 const vibX = (Math.random() - 0.5) * vibration;
                 const vibY = (Math.random() - 0.5) * vibration;
-                const shade = Math.round(244 - 235 * intensity);
+                const shade = Math.round(
+                    palette.motorInactive +
+                    (palette.motorActive - palette.motorInactive) * intensity
+                );
 
                 ctx.save();
                 ctx.translate(vibX, vibY);
@@ -625,10 +785,10 @@
                     0,
                     Math.PI * 2
                 );
-                ctx.fillStyle = `rgb(${shade}, ${shade}, ${Math.min(245, shade + 1)})`;
-                ctx.strokeStyle = `rgba(161, 161, 170, ${0.35 + intensity * 0.45})`;
+                ctx.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
+                ctx.strokeStyle = `rgba(${palette.motorStroke}, ${0.35 + intensity * 0.45})`;
                 ctx.lineWidth = 1;
-                ctx.shadowColor = `rgba(9, 9, 11, ${intensity * 0.25})`;
+                ctx.shadowColor = `rgba(${palette.motorShadow}, ${intensity * 0.25})`;
                 ctx.shadowBlur = intensity * 8;
                 ctx.fill();
                 ctx.stroke();

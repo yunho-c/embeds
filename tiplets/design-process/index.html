@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <link rel="icon" href="data:,">
+    <title>TipLets Design Process</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --background: #ffffff;
+            --foreground: #09090b;
+            --muted: #f4f4f5;
+            --muted-foreground: #71717a;
+            --border: #e4e4e7;
+            --ring: #18181b;
+            --radius: 0.75rem;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            min-height: 100%;
+            margin: 0;
+        }
+
+        body {
+            overflow: hidden;
+            background: var(--background);
+            color: var(--foreground);
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .diagram-scroll {
+            height: 100svh;
+            overflow-x: auto;
+            overflow-y: hidden;
+            overscroll-behavior-x: contain;
+        }
+
+        .diagram-stage {
+            position: relative;
+            width: min(100%, calc(100svh * 1.556761));
+            min-width: 760px;
+            max-width: 1865px;
+            aspect-ratio: 1865 / 1198;
+            margin: 0 auto;
+        }
+
+        .diagram-image {
+            display: block;
+            width: 100%;
+            height: 100%;
+            user-select: none;
+        }
+
+        .node-layer {
+            position: absolute;
+            inset: 0;
+        }
+
+        .diagram-node {
+            position: absolute;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: clamp(8px, 1.6vw, 30px);
+            background: transparent;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .diagram-node:hover,
+        .diagram-node.is-active {
+            border-color: rgb(24 24 27 / 28%);
+            background: rgb(24 24 27 / 5%);
+        }
+
+        .diagram-node:focus-visible {
+            z-index: 1;
+            border-color: var(--ring);
+            outline: none;
+            box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+        }
+
+        .topic-popover {
+            position: fixed;
+            z-index: 30;
+            width: min(28rem, calc(100vw - 1.5rem));
+            max-height: min(38rem, calc(100svh - 1.5rem));
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--background);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
+            animation: popover-in 120ms ease-out;
+        }
+
+        .topic-popover[hidden] {
+            display: none;
+        }
+
+        .popover-content {
+            max-height: min(38rem, calc(100svh - 1.5rem));
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 1rem;
+            color: #27272a;
+            font-size: 0.875rem;
+            line-height: 1.55;
+        }
+
+        .popover-content p {
+            margin: 0 0 0.875rem;
+        }
+
+        .popover-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .popover-content strong {
+            color: var(--foreground);
+            font-weight: 600;
+        }
+
+        .popover-content code {
+            border-radius: 0.25rem;
+            background: var(--muted);
+            padding: 0.1rem 0.25rem;
+            color: var(--foreground);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8em;
+        }
+
+        .popover-content a {
+            color: var(--foreground);
+            font-weight: 500;
+            text-underline-offset: 3px;
+        }
+
+        .popover-content img {
+            display: block;
+            width: 100%;
+            height: auto;
+            margin: 0.25rem 0 1rem;
+            border: 1px solid var(--border);
+            border-radius: calc(var(--radius) - 2px);
+        }
+
+        .empty-content,
+        .content-error {
+            color: var(--muted-foreground);
+        }
+
+        @keyframes popover-in {
+            from {
+                opacity: 0;
+                transform: translateY(2px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .diagram-stage {
+                margin-inline: 0;
+            }
+
+            .topic-popover {
+                top: auto !important;
+                right: 0.75rem;
+                bottom: max(0.75rem, env(safe-area-inset-bottom));
+                left: 0.75rem !important;
+                width: auto;
+                max-height: min(72svh, 38rem);
+            }
+
+            .popover-content {
+                max-height: min(72svh, 38rem);
+            }
+
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .diagram-node,
+            .topic-popover {
+                transition: none;
+                animation: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1 class="sr-only">TipLets design process</h1>
+
+        <div class="diagram-scroll" id="diagram-scroll">
+            <div class="diagram-stage" id="diagram-stage">
+                <img
+                    class="diagram-image"
+                    src="TipLets Design Process Diagram.svg"
+                    alt="TipLets design process diagram, from conceptualization through prototyping and testing"
+                    draggable="false"
+                >
+                <div class="node-layer" id="node-layer" aria-label="Interactive design process topics"></div>
+            </div>
+        </div>
+
+        <aside class="topic-popover" id="topic-popover" role="dialog" aria-label="Topic details" hidden>
+            <div class="popover-content" id="popover-content"></div>
+        </aside>
+    </main>
+
+    <script>
+        const SVG_WIDTH = 1865;
+        const SVG_HEIGHT = 1198;
+
+        const topics = [
+            { label: "Sensory Overload", heading: "Sensory Overload", x: 56, y: 142, width: 198, height: 104, radius: 10 },
+            { label: "Intelligent Filtering", heading: "Intelligent Filtering", x: 83, y: 324, width: 231, height: 105 },
+            { label: "Real-Time Visual Analysis", heading: "Real-Time Visual Analysis", x: 47, y: 520, width: 267, height: 183 },
+            { label: "Spatiotemporal Modulation", heading: "Spatiotemporal Modulation", x: 448, y: 231, width: 330, height: 134 },
+            { label: "Localization", heading: "Localization", x: 403, y: 456, width: 247, height: 105 },
+            { label: "Miniaturization", heading: "Miniaturization", x: 754, y: 32, width: 279, height: 105 },
+            { label: "Vibrotactile Interfaces", heading: "Vibrotactile Interfaces", x: 805, y: 438, width: 325, height: 164 },
+            { label: "Wireless Operation", heading: "Wireless Operation", x: 1137, y: 30, width: 224, height: 137 },
+            { label: "Component Selection", heading: "Component Selection", x: 1260, y: 197, width: 297, height: 164 },
+            { label: "Motor Driver", heading: "Motor Driver", x: 883, y: 659, width: 279, height: 105 },
+            { label: "Electrical Schematic", heading: "Electrical Schematic", x: 1266, y: 452, width: 279, height: 105 },
+            { label: "Printed Circuit Board (PCB)", heading: "Printed Circuit Board (PCB)", x: 1233, y: 630, width: 345, height: 164 },
+            { label: "Fabrication & Assembly", heading: "Fabrication/Assembly", x: 1383, y: 849, width: 279, height: 122 },
+            { label: "Firmware (C++)", heading: "Firmware", x: 1008, y: 939, width: 304, height: 105 },
+            { label: "Cost", heading: "Cost", x: 1634, y: 355, width: 178, height: 119 },
+            { label: "Design for Manufacturing (DFM)", heading: "Design for Manufacturing", x: 1608, y: 599, width: 238, height: 163 },
+            { label: "Testing", heading: "Testing", x: 1577, y: 1038, width: 240, height: 119 }
+        ];
+
+        const nodeLayer = document.getElementById("node-layer");
+        const popover = document.getElementById("topic-popover");
+        const popoverContent = document.getElementById("popover-content");
+        const mobileLayout = window.matchMedia("(max-width: 640px)");
+
+        let sections = new Map();
+        let activeButton = null;
+        let pinned = false;
+        let closeTimer = null;
+        let contentError = null;
+
+        function escapeHtml(value) {
+            return value
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function safeUrl(value) {
+            const url = value.trim();
+            return /^(https?:\/\/|\.\.?\/)/i.test(url) ? url : "";
+        }
+
+        function renderInline(value) {
+            const codeSpans = [];
+            let html = escapeHtml(value).replace(/`([^`]+)`/g, (_, code) => {
+                const index = codeSpans.push(`<code>${code}</code>`) - 1;
+                return `\u0000CODE${index}\u0000`;
+            });
+
+            html = html
+                .replace(/\[([^\]]+)]\(([^)]+)\)/g, (match, text, url) => {
+                    const href = safeUrl(url.replaceAll("&amp;", "&"));
+                    return href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${text}</a>` : text;
+                })
+                .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+                .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+                .replace(/\u0000CODE(\d+)\u0000/g, (_, index) => codeSpans[Number(index)]);
+
+            return html;
+        }
+
+        function renderMarkdown(markdown) {
+            const blocks = markdown.trim().split(/\n\s*\n/);
+            const output = [];
+
+            for (const block of blocks) {
+                const trimmed = block.trim();
+                if (!trimmed || trimmed.startsWith("[HIDE]")) continue;
+
+                const image = trimmed.match(/^!\[([^\]]*)]\(([^)]+)\)$/);
+                if (image) {
+                    const src = safeUrl(image[2]);
+                    if (src) output.push(`<img src="${escapeHtml(src)}" alt="${escapeHtml(image[1])}" loading="lazy">`);
+                    continue;
+                }
+
+                output.push(`<p>${renderInline(trimmed.replace(/\n+/g, " "))}</p>`);
+            }
+
+            return output.join("") || '<p class="empty-content">Content coming soon.</p>';
+        }
+
+        function parseSections(markdown) {
+            const headings = [...markdown.matchAll(/^###\s+(.+)$/gm)];
+            const parsed = new Map();
+
+            headings.forEach((match, index) => {
+                const start = match.index + match[0].length;
+                const end = headings[index + 1]?.index ?? markdown.length;
+                parsed.set(match[1].trim(), markdown.slice(start, end).trim());
+            });
+
+            return parsed;
+        }
+
+        function setButtonPosition(button, topic) {
+            button.style.left = `${topic.x / SVG_WIDTH * 100}%`;
+            button.style.top = `${topic.y / SVG_HEIGHT * 100}%`;
+            button.style.width = `${topic.width / SVG_WIDTH * 100}%`;
+            button.style.height = `${topic.height / SVG_HEIGHT * 100}%`;
+            if (topic.radius) button.style.borderRadius = `${topic.radius}px`;
+        }
+
+        function cancelScheduledClose() {
+            window.clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+
+        function scheduleClose() {
+            cancelScheduledClose();
+            if (!pinned) closeTimer = window.setTimeout(closePopover, 180);
+        }
+
+        function positionPopover(button) {
+            if (mobileLayout.matches) {
+                popover.style.top = "";
+                popover.style.left = "";
+                return;
+            }
+
+            const anchor = button.getBoundingClientRect();
+            const bounds = popover.getBoundingClientRect();
+            const gap = 12;
+            const margin = 12;
+
+            let left = anchor.right + gap;
+            if (left + bounds.width > window.innerWidth - margin) left = anchor.left - bounds.width - gap;
+            left = Math.max(margin, Math.min(left, window.innerWidth - bounds.width - margin));
+
+            let top = anchor.top + anchor.height / 2 - bounds.height / 2;
+            top = Math.max(margin, Math.min(top, window.innerHeight - bounds.height - margin));
+
+            popover.style.left = `${Math.round(left)}px`;
+            popover.style.top = `${Math.round(top)}px`;
+        }
+
+        function openPopover(button, shouldPin) {
+            cancelScheduledClose();
+            const topic = topics[Number(button.dataset.topicIndex)];
+
+            if (activeButton && activeButton !== button) activeButton.classList.remove("is-active");
+            activeButton = button;
+            pinned = shouldPin;
+            button.classList.add("is-active");
+            button.setAttribute("aria-expanded", "true");
+
+            popover.setAttribute("aria-label", `${topic.label} details`);
+            if (contentError) {
+                popoverContent.innerHTML = `<p class="content-error">${escapeHtml(contentError)}</p>`;
+            } else if (!sections.size) {
+                popoverContent.innerHTML = '<p class="empty-content">Loading content…</p>';
+            } else {
+                popoverContent.innerHTML = renderMarkdown(sections.get(topic.heading) ?? "");
+            }
+
+            popoverContent.scrollTop = 0;
+            popover.hidden = false;
+            requestAnimationFrame(() => positionPopover(button));
+        }
+
+        function closePopover({ restoreFocus = false } = {}) {
+            cancelScheduledClose();
+            const button = activeButton;
+            if (button) {
+                button.classList.remove("is-active");
+                button.setAttribute("aria-expanded", "false");
+            }
+            activeButton = null;
+            pinned = false;
+            popover.hidden = true;
+            if (restoreFocus && button) button.focus();
+        }
+
+        topics.forEach((topic, index) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "diagram-node";
+            button.dataset.topicIndex = index;
+            button.setAttribute("aria-label", `Learn about ${topic.label}`);
+            button.setAttribute("aria-haspopup", "dialog");
+            button.setAttribute("aria-controls", "topic-popover");
+            button.setAttribute("aria-expanded", "false");
+            setButtonPosition(button, topic);
+
+            button.addEventListener("pointerenter", event => {
+                if (event.pointerType !== "touch" && !pinned) openPopover(button, false);
+            });
+            button.addEventListener("pointerleave", scheduleClose);
+            button.addEventListener("focus", () => {
+                if (!pinned) openPopover(button, false);
+            });
+            button.addEventListener("blur", scheduleClose);
+            button.addEventListener("click", event => {
+                event.stopPropagation();
+                if (activeButton === button && pinned) {
+                    closePopover({ restoreFocus: true });
+                } else {
+                    openPopover(button, true);
+                }
+            });
+
+            nodeLayer.append(button);
+        });
+
+        popover.addEventListener("pointerenter", cancelScheduledClose);
+        popover.addEventListener("pointerleave", scheduleClose);
+        popover.addEventListener("focusin", cancelScheduledClose);
+        popover.addEventListener("focusout", scheduleClose);
+
+        document.addEventListener("click", event => {
+            if (pinned && !popover.contains(event.target) && !activeButton?.contains(event.target)) closePopover();
+        });
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && !popover.hidden) {
+                event.preventDefault();
+                closePopover({ restoreFocus: true });
+            }
+        });
+
+        window.addEventListener("resize", () => {
+            if (activeButton) positionPopover(activeButton);
+        });
+
+        document.getElementById("diagram-scroll").addEventListener("scroll", () => {
+            if (activeButton && !mobileLayout.matches) positionPopover(activeButton);
+        }, { passive: true });
+
+        fetch("content.md")
+            .then(response => {
+                if (!response.ok) throw new Error(`Could not load content.md (${response.status}).`);
+                return response.text();
+            })
+            .then(markdown => {
+                sections = parseSections(markdown);
+                if (activeButton) openPopover(activeButton, pinned);
+            })
+            .catch(error => {
+                contentError = "The topic content could not be loaded. Open this page through a local or hosted web server.";
+                console.error(error);
+                if (activeButton) openPopover(activeButton, pinned);
+            });
+    </script>
+</body>
+</html>

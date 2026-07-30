@@ -14,9 +14,7 @@ To deal with the problem of sensory overload, we decided to employ a number of h
 
 [HIDE] `Consider making a separate page for RTVA`
 
-TODO: Put the RTVA video here!
-
-![](https://yunhocho.com/rtsa3.png)
+https://assets.yunhocho.com/videos/rtsa_0_3.MOV
 
 **Real-Time Visual Analyzer (RTVA)** is a Python program that contains inference-optimized implementations of relevant computer vision models including YOLOv5 (object detection), YOLACT-Edge (instance segmentation), PIDINet (holistic edge detection), and mediapipe (hand tracking, facial mesh).
 

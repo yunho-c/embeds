@@ -159,13 +159,18 @@
             text-underline-offset: 3px;
         }
 
-        .popover-content img {
+        .popover-content img,
+        .popover-content video {
             display: block;
             width: 100%;
             height: auto;
             margin: 0.25rem 0 1rem;
             border: 1px solid var(--border);
             border-radius: calc(var(--radius) - 2px);
+        }
+
+        .popover-content video {
+            background: var(--foreground);
         }
 
         .empty-content,
@@ -310,6 +315,13 @@
                 const trimmed = block.trim();
                 if (!trimmed || trimmed.startsWith("[HIDE]")) continue;
 
+                const videoUrl = safeUrl(trimmed);
+                if (videoUrl && /\.(mp4|webm|ogg|ogv|mov)(?:[?#].*)?$/i.test(videoUrl)) {
+                    const src = escapeHtml(videoUrl);
+                    output.push(`<video src="${src}" autoplay muted loop playsinline controls preload="metadata" aria-label="Topic video"><a href="${src}" target="_blank" rel="noreferrer">Open video</a></video>`);
+                    continue;
+                }
+
                 const image = trimmed.match(/^!\[([^\]]*)]\(([^)]+)\)$/);
                 if (image) {
                     const src = safeUrl(image[2]);
@@ -398,7 +410,12 @@
 
             popoverContent.scrollTop = 0;
             popover.hidden = false;
-            requestAnimationFrame(() => positionPopover(button));
+            requestAnimationFrame(() => {
+                positionPopover(button);
+                popoverContent.querySelectorAll("video[autoplay]").forEach(video => {
+                    video.play().catch(() => {});
+                });
+            });
         }
 
         function closePopover({ restoreFocus = false } = {}) {
@@ -410,6 +427,7 @@
             }
             activeButton = null;
             pinned = false;
+            popoverContent.querySelectorAll("video").forEach(video => video.pause());
             popover.hidden = true;
             if (restoreFocus && button) button.focus();
         }

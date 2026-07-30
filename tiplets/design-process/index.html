@@ -62,7 +62,6 @@
         .diagram-stage {
             position: relative;
             width: min(100%, calc(100svh * 1.556761));
-            min-width: 760px;
             max-width: 1865px;
             aspect-ratio: 1865 / 1198;
             margin: 0 auto;
@@ -444,7 +443,7 @@
             setButtonPosition(button, topic);
 
             button.addEventListener("pointerenter", event => {
-                if (event.pointerType !== "touch" && !pinned) openPopover(button, false);
+                if (event.pointerType !== "touch" && !mobileLayout.matches && !pinned) openPopover(button, false);
             });
             button.addEventListener("pointerleave", scheduleClose);
             button.addEventListener("focus", () => {

@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JPEG Compression: The Power of Frequencies</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #000000;
+            color: #f5f5f7;
+            margin: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Custom styled slider (Apple minimal style) */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #333336;
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        /* Pixelated rendering to emphasize block artifacts */
+        .pixelated-canvas {
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-black">
+
+    <!-- Top bar -->
+    <div class="w-full max-w-3xl flex justify-between items-center mb-10 md:mb-16">
+        <h1 class="text-lg font-medium tracking-tight text-white/80">JPEG DCT</h1>
+        <label class="cursor-pointer bg-[#1c1c1e] hover:bg-[#2c2c2e] transition-colors px-4 py-2 rounded-full text-sm font-medium text-white/90">
+            Upload Image
+            <input type="file" id="image-upload" accept="image/*" class="hidden">
+        </label>
+    </div>
+
+    <!-- Canvases -->
+    <div class="flex flex-col md:flex-row gap-6 md:gap-12 mb-16">
+        <div class="flex flex-col items-center space-y-4">
+            <span class="text-[10px] font-semibold text-white/40 uppercase tracking-[0.2em]">Original</span>
+            <canvas id="canvas-original" width="256" height="256" class="w-[256px] h-[256px] rounded-3xl bg-[#1c1c1e] shadow-2xl pixelated-canvas"></canvas>
+        </div>
+        <div class="flex flex-col items-center space-y-4">
+            <span class="text-[10px] font-semibold text-white/40 uppercase tracking-[0.2em]">Reconstructed</span>
+            <canvas id="canvas-reconstructed" width="256" height="256" class="w-[256px] h-[256px] rounded-3xl bg-[#1c1c1e] shadow-2xl pixelated-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="w-full max-w-md flex items-center space-x-6 bg-[#1c1c1e] p-4 rounded-full shadow-lg">
+        <button id="play-btn" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 transition-transform">
+            <!-- Play icon -->
+            <svg id="play-icon" class="w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M8 5v10l7-5-7-5z"/></svg>
+            <!-- Pause icon -->
+            <svg id="pause-icon" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M6 4h3v12H6zM11 4h3v12h-3z"/></svg>
+        </button>
+
+        <input type="range" id="coef-slider" min="1" max="64" value="64" class="w-full">
+
+        <div class="w-6 text-right font-mono text-sm text-white/60" id="coef-value">64</div>
+    </div>
+
+    <!-- Loading spinner (hidden) -->
+    <div id="loading-indicator" class="hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[#1c1c1e]/80 backdrop-blur-md px-6 py-3 rounded-full text-sm font-medium text-white/90 z-50 shadow-2xl">
+        Processing...
+    </div>
+
+<script>
+    // -------------------------------------------------------------
+    // Core Constants & Precomputed Tables for DCT Performance
+    // -------------------------------------------------------------
+    const IMG_SIZE = 256;
+    const BLOCK_SIZE = 8;
+    const BLOCKS_ACROSS = IMG_SIZE / BLOCK_SIZE;
+    const TOTAL_BLOCKS = BLOCKS_ACROSS * BLOCKS_ACROSS;
+
+    // Standard JPEG Zig-Zag ordering matrix
+    const ZIGZAG_INDICES = [
+        0,  1,  5,  6,  14, 15, 27, 28,
+        2,  4,  7,  13, 16, 26, 29, 42,
+        3,  8,  12, 17, 25, 30, 41, 43,
+        9,  11, 18, 24, 31, 40, 44, 53,
+        10, 19, 23, 32, 39, 45, 52, 54,
+        20, 22, 33, 38, 46, 51, 55, 60,
+        21, 34, 37, 47, 50, 56, 59, 61,
+        35, 36, 48, 49, 57, 58, 62, 63
+    ];
+
+    // Create a reverse map: coordinate pair [u,v] for each index 0-63
+    const ZIGZAG_COORDS = new Array(64);
+    for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+            ZIGZAG_COORDS[ZIGZAG_INDICES[y * 8 + x]] = [x, y];
+        }
+    }
+
+    // Precompute Cosine tables to vastly speed up JS math execution
+    const COS_MAP = new Array(8);
+    for (let freq = 0; freq < 8; freq++) {
+        COS_MAP[freq] = new Float32Array(8);
+        for (let spatial = 0; spatial < 8; spatial++) {
+            COS_MAP[freq][spatial] = Math.cos(((2 * spatial + 1) * freq * Math.PI) / 16);
+        }
+    }
+
+    // Precompute normalization coefficients C(u)
+    const C_COEF = new Float32Array(8);
+    C_COEF[0] = 1 / Math.sqrt(2);
+    for (let i = 1; i < 8; i++) {
+        C_COEF[i] = 1;
+    }
+
+    // Storage for the fully transformed frequency blocks (R, G, B channels)
+    // We precalculate the forward DCT once so the slider just does the Inverse DCT
+    const freqBlocks = {
+        r: new Array(TOTAL_BLOCKS),
+        g: new Array(TOTAL_BLOCKS),
+        b: new Array(TOTAL_BLOCKS)
+    };
+
+    // -------------------------------------------------------------
+    // Mathematical Functions: FDCT & IDCT
+    // -------------------------------------------------------------
+
+    /**
+     * Forward Discrete Cosine Transform (FDCT)
+     * Converts an 8x8 spatial pixel block into an 8x8 frequency coefficient block.
+     */
+    function performFDCT(spatialBlock) {
+        let freqBlock = new Float32Array(64);
+        for (let v = 0; v < 8; v++) {
+            for (let u = 0; u < 8; u++) {
+                let sum = 0;
+                for (let y = 0; y < 8; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        // Using precomputed cosines
+                        sum += spatialBlock[y * 8 + x] * COS_MAP[u][x] * COS_MAP[v][y];
+                    }
+                }
+                freqBlock[v * 8 + u] = 0.25 * C_COEF[u] * C_COEF[v] * sum;
+            }
+        }
+        return freqBlock;
+    }
+
+    /**
+     * Inverse Discrete Cosine Transform (IDCT)
+     * Reconstructs an 8x8 spatial pixel block using only the first N zig-zag coefficients.
+     */
+    function performIDCT(freqBlock, numCoeffs) {
+        let spatialBlock = new Float32Array(64);
+
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 8; x++) {
+                let sum = 0;
+                // Only sum up to the specified number of zig-zag coefficients!
+                for (let i = 0; i < numCoeffs; i++) {
+                    let [u, v] = ZIGZAG_COORDS[i];
+                    sum += C_COEF[u] * C_COEF[v] * freqBlock[v * 8 + u] * COS_MAP[u][x] * COS_MAP[v][y];
+                }
+                spatialBlock[y * 8 + x] = 0.25 * sum;
+            }
+        }
+        return spatialBlock;
+    }
+
+    // -------------------------------------------------------------
+    // Image Generation and Processing
+    // -------------------------------------------------------------
+
+    /**
+     * Draws a mathematically structured test image designed to highlight
+     * both low-frequency gradients and high-frequency sharp edges.
+     */
+    function generateTestImage(ctx, width, height) {
+        // 1. Low frequency: Smooth sky gradient
+        let grad = ctx.createLinearGradient(0, 0, 0, height * 0.6);
+        grad.addColorStop(0, '#1e3a8a'); // Deep blue
+        grad.addColorStop(1, '#bae6fd'); // Light sky blue
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height * 0.6);
+
+        // 2. Mid/High frequency: Bright Sun (curved edge)
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(width * 0.75, height * 0.25, 35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. High frequency: Sharp vector mountains
+        ctx.fillStyle = '#065f46'; // Dark green
+        ctx.beginPath();
+        ctx.moveTo(0, height * 0.6);
+        ctx.lineTo(width * 0.35, height * 0.2);
+        ctx.lineTo(width * 0.7, height * 0.6);
+        ctx.fill();
+
+        ctx.fillStyle = '#10b981'; // Lighter green
+        ctx.beginPath();
+        ctx.moveTo(width * 0.4, height * 0.6);
+        ctx.lineTo(width * 0.8, height * 0.3);
+        ctx.lineTo(width, height * 0.6);
+        ctx.fill();
+
+        // 4. Extreme High Frequency: Checkerboard ground
+        // Checkerboard requires the highest AC coefficients to resolve properly
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, height * 0.6, width, height * 0.4);
+        ctx.fillStyle = '#e2e8f0';
+        for(let y = height * 0.6; y < height; y += 4) {
+            for(let x = 0; x < width; x += 4) {
+                // Creates a 4x4 pixel checkerboard pattern
+                if(((x / 4) + (y / 4)) % 2 === 0) {
+                    ctx.fillRect(x, y, 4, 4);
+                }
+            }
+        }
+
+        // 5. Extreme High Frequency: Text
+        ctx.fillStyle = '#ef4444'; // Red
+        ctx.font = '900 36px "Inter", sans-serif';
+        ctx.fillText('DCT', 15, height * 0.9);
+    }
+
+    /**
+     * Extracts pixel data, splits it into 8x8 blocks, applies the shift (-128)
+     * and runs the Forward DCT, saving the results to memory.
+     */
+    function processInitialImage(generateTest = false) {
+        const canvas = document.getElementById('canvas-original');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        if (generateTest) {
+            generateTestImage(ctx, IMG_SIZE, IMG_SIZE);
+        }
+
+        const imgData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE).data;
+
+        // Loop over every 8x8 block in the image
+        let blockIndex = 0;
+        for (let by = 0; by < BLOCKS_ACROSS; by++) {
+            for (let bx = 0; bx < BLOCKS_ACROSS; bx++) {
+
+                let spatialR = new Float32Array(64);
+                let spatialG = new Float32Array(64);
+                let spatialB = new Float32Array(64);
+
+                // Extract the 8x8 pixels for this block
+                for (let y = 0; y < 8; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        let px = ((by * 8 + y) * IMG_SIZE + (bx * 8 + x)) * 4;
+
+                        // JPEG standard: Level shift by subtracting 128 to center around 0
+                        spatialR[y * 8 + x] = imgData[px] - 128;
+                        spatialG[y * 8 + x] = imgData[px + 1] - 128;
+                        spatialB[y * 8 + x] = imgData[px + 2] - 128;
+                    }
+                }
+
+                // Compute FDCT and store the frequency coefficients
+                freqBlocks.r[blockIndex] = performFDCT(spatialR);
+                freqBlocks.g[blockIndex] = performFDCT(spatialG);
+                freqBlocks.b[blockIndex] = performFDCT(spatialB);
+
+                blockIndex++;
+            }
+        }
+    }
+
+    /**
+     * Reconstructs the image based on the current slider value (N coefficients)
+     * and draws it to the output canvas.
+     */
+    function updateReconstruction(numCoeffs) {
+        const canvas = document.getElementById('canvas-reconstructed');
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(IMG_SIZE, IMG_SIZE);
+        const data = imgData.data;
+
+        let blockIndex = 0;
+        for (let by = 0; by < BLOCKS_ACROSS; by++) {
+            for (let bx = 0; bx < BLOCKS_ACROSS; bx++) {
+
+                // Perform IDCT using only the selected number of coefficients
+                let spatialR = performIDCT(freqBlocks.r[blockIndex], numCoeffs);
+                let spatialG = performIDCT(freqBlocks.g[blockIndex], numCoeffs);
+                let spatialB = performIDCT(freqBlocks.b[blockIndex], numCoeffs);
+
+                // Write the reconstructed block back to the flat ImageData array
+                for (let y = 0; y < 8; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        let px = ((by * 8 + y) * IMG_SIZE + (bx * 8 + x)) * 4;
+
+                        // Add 128 back (reverse level shift) and clamp to 0-255
+                        data[px] = Math.max(0, Math.min(255, spatialR[y * 8 + x] + 128));
+                        data[px + 1] = Math.max(0, Math.min(255, spatialG[y * 8 + x] + 128));
+                        data[px + 2] = Math.max(0, Math.min(255, spatialB[y * 8 + x] + 128));
+                        data[px + 3] = 255; // Alpha channel fully opaque
+                    }
+                }
+                blockIndex++;
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    // -------------------------------------------------------------
+    // Application Initialization and Events
+    // -------------------------------------------------------------
+
+    let isAnimating = false;
+    let animationDirection = 1;
+    let animationReqId;
+
+    function init() {
+        try {
+            document.getElementById('loading-indicator').classList.remove('hidden');
+
+            // Allow UI to render loading state before heavy lifting
+            setTimeout(() => {
+                processInitialImage(true);
+                updateReconstruction(64);
+                document.getElementById('loading-indicator').classList.add('hidden');
+            }, 50);
+
+        } catch (e) {
+            console.error("Initialization error:", e);
+        }
+
+        // Slider Event
+        const slider = document.getElementById('coef-slider');
+        const valDisplay = document.getElementById('coef-value');
+
+        slider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value, 10);
+            valDisplay.innerText = val;
+
+            // Stop animation if user interacts manually
+            if (isAnimating) toggleAnimation();
+
+            // We use requestAnimationFrame to prevent blocking the UI thread during rapid scrubbing
+            requestAnimationFrame(() => updateReconstruction(val));
+        });
+
+        // Animation Event
+        document.getElementById('play-btn').addEventListener('click', toggleAnimation);
+
+        // Image Upload Event
+        document.getElementById('image-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('loading-indicator').classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.getElementById('canvas-original');
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    ctx.clearRect(0, 0, IMG_SIZE, IMG_SIZE);
+
+                    // Center crop logic for user images
+                    const size = Math.min(img.width, img.height);
+                    const sx = (img.width - size) / 2;
+                    const sy = (img.height - size) / 2;
+                    ctx.drawImage(img, sx, sy, size, size, 0, 0, IMG_SIZE, IMG_SIZE);
+
+                    processInitialImage(false); // Process uploaded image without regenerating test pattern
+                    const sliderVal = parseInt(document.getElementById('coef-slider').value, 10);
+                    updateReconstruction(sliderVal);
+
+                    document.getElementById('loading-indicator').classList.add('hidden');
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function toggleAnimation() {
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const slider = document.getElementById('coef-slider');
+
+        if (isAnimating) {
+            isAnimating = false;
+            cancelAnimationFrame(animationReqId);
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+        } else {
+            isAnimating = true;
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+
+            // If already at 64, start by going backwards
+            if (parseInt(slider.value) === 64) animationDirection = -1;
+
+            animateSlider();
+        }
+    }
+
+    function animateSlider() {
+        if (!isAnimating) return;
+
+        const slider = document.getElementById('coef-slider');
+        const valDisplay = document.getElementById('coef-value');
+        let currentVal = parseInt(slider.value, 10);
+
+        // Ping-pong the animation
+        if (currentVal >= 64) animationDirection = -1;
+        if (currentVal <= 1) animationDirection = 1;
+
+        // Skip faster through the high frequencies, slower in the low frequencies (where change is obvious)
+        let step = 1;
+        if (currentVal > 15) step = 2;
+        if (currentVal > 30) step = 4;
+
+        currentVal += (step * animationDirection);
+        // Clamp bounds securely
+        currentVal = Math.max(1, Math.min(64, currentVal));
+
+        slider.value = currentVal;
+        valDisplay.innerText = currentVal;
+
+        updateReconstruction(currentVal);
+
+        // Slightly throttle the animation loop to make it observable
+        setTimeout(() => {
+            if(isAnimating) {
+                animationReqId = requestAnimationFrame(animateSlider);
+            }
+        }, 100);
+    }
+
+    // Run on load
+    window.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>

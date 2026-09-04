@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>JPEG Zig-Zag Scan and Run-Length Encoding</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #000;
+            color: #fff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+            margin: 0;
+        }
+
+        body {
+            background: #000;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        button {
+            border: 0;
+            font: inherit;
+        }
+
+        button:focus-visible {
+            outline: 2px solid #64a9ff;
+            outline-offset: 2px;
+        }
+
+        .app {
+            min-height: 100vh;
+            padding: 48px 0;
+        }
+
+        .container {
+            width: min(100% - 48px, 1024px);
+            margin: 0 auto;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 32px;
+            padding: 8px;
+            border: 1px solid #2c2c2e;
+            border-radius: 999px;
+            background: #1c1c1e;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            padding: 4px;
+        }
+
+        .control-button {
+            min-height: 40px;
+            padding: 10px 20px;
+            border-radius: 999px;
+            background: transparent;
+            color: #8e8e93;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 20px;
+            white-space: nowrap;
+            transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+        }
+
+        .control-button:hover {
+            background: #2c2c2e;
+            color: #fff;
+        }
+
+        .control-button:active {
+            transform: scale(0.98);
+        }
+
+        .block-button[aria-pressed="true"] {
+            background: #3a3a3c;
+            color: #fff;
+            box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+        }
+
+        .scan-controls {
+            flex: 0 0 auto;
+            border: 1px solid #2c2c2e;
+            border-radius: 999px;
+            background: #000;
+        }
+
+        .scan-button {
+            padding-inline: 24px;
+        }
+
+        .scan-button[aria-pressed="true"] {
+            background: #2c2c2e;
+            color: #0a84ff;
+            box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+        }
+
+        .divider {
+            width: 1px;
+            height: 32px;
+            flex: 0 0 auto;
+            background: #2c2c2e;
+        }
+
+        .visualization {
+            display: grid;
+            grid-template-columns: 5fr 7fr;
+            gap: 32px;
+            margin-bottom: 32px;
+        }
+
+        .panel {
+            border: 1px solid #2c2c2e;
+            border-radius: 24px;
+            background: #1c1c1e;
+        }
+
+        .matrix-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+        }
+
+        .matrix {
+            position: relative;
+            width: min(100%, 320px);
+            aspect-ratio: 1;
+            overflow: hidden;
+            border: 1px solid #2c2c2e;
+            border-radius: 12px;
+            background: #000;
+        }
+
+        .matrix-cells {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+        }
+
+        .matrix-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            border-right: 1px solid #2c2c2e;
+            border-bottom: 1px solid #2c2c2e;
+            color: #636366;
+            font-size: clamp(10px, 1.4vw, 14px);
+            font-weight: 500;
+        }
+
+        .matrix-cell:nth-child(8n) {
+            border-right: 0;
+        }
+
+        .matrix-cell:nth-child(n + 57) {
+            border-bottom: 0;
+        }
+
+        .matrix-cell.nonzero {
+            background: rgb(10 132 255 / 10%);
+            color: #0a84ff;
+        }
+
+        .scan-overlay {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .scan-path {
+            opacity: 0.8;
+            animation: draw-path 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+
+        @keyframes draw-path {
+            from { stroke-dashoffset: 100; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-content: center;
+            gap: 16px;
+        }
+
+        .stat-card {
+            display: flex;
+            min-height: 133px;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            border: 1px solid #2c2c2e;
+            border-radius: 16px;
+            background: #1c1c1e;
+            transition: border-color 240ms ease, background-color 240ms ease;
+        }
+
+        .stat-card.highlight {
+            border-color: rgb(10 132 255 / 20%);
+            background: rgb(10 132 255 / 10%);
+        }
+
+        .stat-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            color: #8e8e93;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            line-height: 16px;
+            text-transform: uppercase;
+        }
+
+        .stat-card.highlight .stat-label,
+        .stat-card.highlight .stat-value {
+            color: #0a84ff;
+        }
+
+        .stat-label svg {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 auto;
+        }
+
+        .stat-value {
+            color: #fff;
+            font-size: 36px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 40px;
+        }
+
+        .sequence-panel {
+            padding: 32px;
+        }
+
+        .sequence-title {
+            margin: 0 0 24px;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            line-height: 24px;
+        }
+
+        .sequence {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sequence-cell {
+            display: flex;
+            width: 40px;
+            height: 48px;
+            flex: 0 0 auto;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #2c2c2e;
+            border-radius: 8px;
+            background: #000;
+            color: #8e8e93;
+            font-size: 14px;
+            line-height: 16px;
+            transition: opacity 240ms ease, border-color 240ms ease, background-color 240ms ease;
+        }
+
+        .sequence-cell.nonzero {
+            border-color: rgb(10 132 255 / 20%);
+            background: rgb(10 132 255 / 10%);
+            color: #0a84ff;
+            font-weight: 500;
+        }
+
+        .sequence-cell.rle-zero {
+            border-color: #3a3a3c;
+            border-style: dashed;
+            background: transparent;
+            color: #48484a;
+            opacity: 0.6;
+        }
+
+        .sequence-index {
+            margin-bottom: 2px;
+            font-size: 9px;
+            line-height: 10px;
+            opacity: 0.4;
+        }
+
+        @media (max-width: 900px) {
+            .controls {
+                align-items: stretch;
+                border-radius: 16px;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .block-controls {
+                overflow-x: auto;
+            }
+
+            .block-button {
+                flex: 1 0 auto;
+            }
+
+            .scan-controls {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                width: 100%;
+            }
+
+            .scan-button {
+                min-width: 0;
+                padding-inline: 12px;
+            }
+
+            .divider {
+                display: none;
+            }
+
+            .visualization {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                order: 2;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .app {
+                padding: 32px 0;
+            }
+
+            .container {
+                width: min(100% - 32px, 1024px);
+            }
+
+            .block-controls {
+                flex-direction: column;
+            }
+
+            .control-button {
+                padding: 9px 14px;
+            }
+
+            .matrix-panel,
+            .sequence-panel {
+                padding: 24px;
+            }
+
+            .stats {
+                gap: 12px;
+            }
+
+            .stat-card {
+                min-height: 122px;
+                padding: 16px;
+            }
+
+            .stat-label {
+                align-items: flex-start;
+                font-size: 10px;
+                letter-spacing: 0.06em;
+            }
+
+            .stat-value {
+                font-size: 32px;
+                line-height: 36px;
+            }
+
+            .sequence {
+                gap: 6px;
+            }
+
+            .sequence-cell {
+                width: 34px;
+                height: 44px;
+                font-size: 12px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <div class="container">
+            <section class="controls" aria-label="Visualization controls">
+                <div class="button-group block-controls" id="block-controls" aria-label="DCT sample block"></div>
+                <div class="divider" aria-hidden="true"></div>
+                <div class="button-group scan-controls" id="scan-controls" aria-label="Scan order"></div>
+            </section>
+
+            <section class="visualization" aria-label="Scan visualization">
+                <div class="panel matrix-panel">
+                    <div class="matrix" role="img" aria-label="An 8 by 8 quantized DCT coefficient block with its scan path">
+                        <div class="matrix-cells" id="matrix-cells"></div>
+                        <svg class="scan-overlay" viewBox="0 0 80 80" aria-hidden="true">
+                            <path
+                                id="scan-path"
+                                class="scan-path"
+                                fill="none"
+                                stroke="#0a84ff"
+                                stroke-width="0.8"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                pathLength="100"
+                                stroke-dasharray="100"
+                            ></path>
+                            <circle cx="5" cy="5" r="1.5" fill="#0a84ff"></circle>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="stats" aria-label="Sequence statistics" aria-live="polite">
+                    <article class="stat-card">
+                        <div class="stat-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18M3 15h18M9 3v18M15 3v18"></path></svg>
+                            <span>Total Zeros</span>
+                        </div>
+                        <div class="stat-value" id="total-zeros">0</div>
+                    </article>
+
+                    <article class="stat-card" id="max-run-card">
+                        <div class="stat-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                            <span>Max Zero Run</span>
+                        </div>
+                        <div class="stat-value" id="max-zero-run">0</div>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                            <span>Unique Values (Raw)</span>
+                        </div>
+                        <div class="stat-value" id="unique-values">0</div>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18M3 15h18M9 3v18M15 3v18"></path></svg>
+                            <span>Non-Zero Values</span>
+                        </div>
+                        <div class="stat-value" id="nonzero-values">0</div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel sequence-panel" aria-labelledby="sequence-title">
+                <h2 class="sequence-title" id="sequence-title">1D Ordered Sequence</h2>
+                <div class="sequence" id="sequence"></div>
+            </section>
+        </div>
+    </main>
+
+    <noscript>This interactive visualization requires JavaScript.</noscript>
+
+    <script>
+        const ZIGZAG_ORDER = [
+             0,  1,  8, 16,  9,  2,  3, 10,
+            17, 24, 32, 25, 18, 11,  4,  5,
+            12, 19, 26, 33, 40, 48, 41, 34,
+            27, 20, 13,  6,  7, 14, 21, 28,
+            35, 42, 49, 56, 57, 50, 43, 36,
+            29, 22, 15, 23, 30, 37, 44, 51,
+            58, 59, 52, 45, 38, 31, 39, 46,
+            53, 60, 61, 54, 47, 55, 62, 63
+        ];
+
+        const ROW_ORDER = Array.from({ length: 64 }, (_, index) => index);
+        const COLUMN_ORDER = Array.from(
+            { length: 64 },
+            (_, index) => (index % 8) * 8 + Math.floor(index / 8)
+        );
+
+        const BLOCKS = [
+            {
+                id: 1,
+                name: "Smooth Gradient (Sky)",
+                data: [
+                    120, 22, 6, 2, 0, 0, 0, 0,
+                    15, 5, 1, 0, 0, 0, 0, 0,
+                    5, 1, 0, 0, 0, 0, 0, 0,
+                    1, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+                ]
+            },
+            {
+                id: 2,
+                name: "High Contrast (Edge)",
+                data: [
+                    65, -30, 15, -8, 4, -2, 1, 0,
+                    -25, 18, -9, 5, -2, 1, 0, 0,
+                    12, -10, 5, -3, 1, 0, 0, 0,
+                    -7, 6, -4, 2, 0, 0, 0, 0,
+                    3, -3, 1, 0, 0, 0, 0, 0,
+                    -1, 1, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+                ]
+            },
+            {
+                id: 3,
+                name: "Flat Color (Wall)",
+                data: [
+                    85, 1, 0, 0, 0, 0, 0, 0,
+                    -1, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+                ]
+            }
+        ];
+
+        const SCAN_TYPES = [
+            { id: "row", label: "Row-Major", order: ROW_ORDER },
+            { id: "col", label: "Col-Major", order: COLUMN_ORDER },
+            { id: "zigzag", label: "Zig-Zag", order: ZIGZAG_ORDER }
+        ];
+
+        let activeBlockId = 1;
+        let activeScanId = "zigzag";
+
+        const elements = {
+            blockControls: document.querySelector("#block-controls"),
+            scanControls: document.querySelector("#scan-controls"),
+            matrixCells: document.querySelector("#matrix-cells"),
+            scanPath: document.querySelector("#scan-path"),
+            totalZeros: document.querySelector("#total-zeros"),
+            maxZeroRun: document.querySelector("#max-zero-run"),
+            maxRunCard: document.querySelector("#max-run-card"),
+            uniqueValues: document.querySelector("#unique-values"),
+            nonzeroValues: document.querySelector("#nonzero-values"),
+            sequence: document.querySelector("#sequence")
+        };
+
+        function getStats(values) {
+            let zeros = 0;
+            let maxZeroRun = 0;
+            let currentZeroRun = 0;
+
+            values.forEach((value) => {
+                if (value === 0) {
+                    zeros += 1;
+                    currentZeroRun += 1;
+                    maxZeroRun = Math.max(maxZeroRun, currentZeroRun);
+                } else {
+                    currentZeroRun = 0;
+                }
+            });
+
+            return {
+                zeros,
+                nonZeros: values.length - zeros,
+                maxZeroRun,
+                uniqueValues: new Set(values).size
+            };
+        }
+
+        function createButton(item, kind, onClick) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `control-button ${kind}-button`;
+            button.textContent = item.label ?? item.name;
+            button.dataset.id = String(item.id);
+            button.addEventListener("click", onClick);
+            return button;
+        }
+
+        function buildControls() {
+            BLOCKS.forEach((block) => {
+                const button = createButton(block, "block", () => {
+                    activeBlockId = block.id;
+                    render();
+                });
+                elements.blockControls.append(button);
+            });
+
+            SCAN_TYPES.forEach((scanType) => {
+                const button = createButton(scanType, "scan", () => {
+                    activeScanId = scanType.id;
+                    render();
+                });
+                elements.scanControls.append(button);
+            });
+        }
+
+        function renderControls() {
+            elements.blockControls.querySelectorAll("button").forEach((button) => {
+                button.setAttribute("aria-pressed", String(Number(button.dataset.id) === activeBlockId));
+            });
+
+            elements.scanControls.querySelectorAll("button").forEach((button) => {
+                button.setAttribute("aria-pressed", String(button.dataset.id === activeScanId));
+            });
+        }
+
+        function renderMatrix(block) {
+            const fragment = document.createDocumentFragment();
+
+            block.data.forEach((value) => {
+                const cell = document.createElement("div");
+                cell.className = `matrix-cell${value === 0 ? "" : " nonzero"}`;
+                cell.textContent = String(value);
+                fragment.append(cell);
+            });
+
+            elements.matrixCells.replaceChildren(fragment);
+        }
+
+        function renderPath(order) {
+            const points = order.map((index) => {
+                const column = index % 8;
+                const row = Math.floor(index / 8);
+                return `${column * 10 + 5},${row * 10 + 5}`;
+            });
+
+            elements.scanPath.setAttribute("d", `M ${points.join(" L ")}`);
+
+            // Restart the drawing animation whenever the block or scan order changes.
+            elements.scanPath.classList.remove("scan-path");
+            void elements.scanPath.getBoundingClientRect();
+            elements.scanPath.classList.add("scan-path");
+        }
+
+        function renderStats(values) {
+            const stats = getStats(values);
+            elements.totalZeros.textContent = String(stats.zeros);
+            elements.maxZeroRun.textContent = String(stats.maxZeroRun);
+            elements.uniqueValues.textContent = String(stats.uniqueValues);
+            elements.nonzeroValues.textContent = String(stats.nonZeros);
+            elements.maxRunCard.classList.toggle("highlight", activeScanId === "zigzag");
+        }
+
+        function renderSequence(values) {
+            const fragment = document.createDocumentFragment();
+
+            values.forEach((value, index) => {
+                const isZero = value === 0;
+                const followsZero = isZero && index > 0 && values[index - 1] === 0;
+                const cell = document.createElement("div");
+                cell.className = "sequence-cell";
+
+                if (!isZero) {
+                    cell.classList.add("nonzero");
+                } else if (followsZero) {
+                    cell.classList.add("rle-zero");
+                }
+
+                const sequenceIndex = document.createElement("span");
+                sequenceIndex.className = "sequence-index";
+                sequenceIndex.textContent = String(index);
+
+                const sequenceValue = document.createElement("span");
+                sequenceValue.textContent = String(value);
+
+                cell.append(sequenceIndex, sequenceValue);
+                fragment.append(cell);
+            });
+
+            elements.sequence.replaceChildren(fragment);
+        }
+
+        function render() {
+            const activeBlock = BLOCKS.find((block) => block.id === activeBlockId);
+            const activeScan = SCAN_TYPES.find((scanType) => scanType.id === activeScanId);
+            const orderedValues = activeScan.order.map((index) => activeBlock.data[index]);
+
+            renderControls();
+            renderMatrix(activeBlock);
+            renderPath(activeScan.order);
+            renderStats(orderedValues);
+            renderSequence(orderedValues);
+        }
+
+        buildControls();
+        render();
+    </script>
+</body>
+</html>

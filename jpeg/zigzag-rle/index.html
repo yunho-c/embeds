@@ -269,6 +269,15 @@
             font-weight: 500;
         }
 
+        .sequence-cell.run-zero {
+            --reveal-from-opacity: 0.15;
+            --reveal-to-opacity: 0.72;
+            border-color: rgb(216 195 154 / 18%);
+            background: rgb(216 195 154 / 5%);
+            color: #d8c39a;
+            font-weight: 500;
+        }
+
         .sequence-cell.omitted-zero {
             --reveal-from-opacity: 0.12;
             --reveal-to-opacity: 0.6;
@@ -771,6 +780,7 @@
 
             values.forEach((value, index) => {
                 const isZero = value === 0;
+                const isRunLengthZero = isZero && index > 0 && index <= finalRecordedPosition;
                 const isOmittedTrailingZero = isZero && index > finalRecordedPosition;
                 const cell = document.createElement("div");
                 cell.className = "sequence-cell";
@@ -781,6 +791,8 @@
 
                 if (!isZero) {
                     cell.classList.add("nonzero");
+                } else if (isRunLengthZero) {
+                    cell.classList.add("run-zero");
                 } else if (isOmittedTrailingZero) {
                     cell.classList.add("omitted-zero");
                 }

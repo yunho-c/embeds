@@ -201,13 +201,21 @@
         }
 
         .scan-path {
-            opacity: 0.8;
             animation: draw-path 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+
+        .scan-guide {
+            opacity: 0.8;
+            animation: fade-guide 500ms ease 3s forwards;
         }
 
         @keyframes draw-path {
             from { stroke-dashoffset: 100; }
             to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes fade-guide {
+            to { opacity: 0; }
         }
 
         .stats {
@@ -442,18 +450,20 @@
                         <div class="representation-frame matrix" role="img" aria-label="An 8 by 8 quantized DCT coefficient block with its scan path">
                             <div class="matrix-cells" id="matrix-cells"></div>
                             <svg class="scan-overlay" viewBox="0 0 80 80" aria-hidden="true">
-                                <path
-                                    id="scan-path"
-                                    class="scan-path"
-                                    fill="none"
-                                    stroke="#0a84ff"
-                                    stroke-width="0.8"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    pathLength="100"
-                                    stroke-dasharray="100"
-                                ></path>
-                                <circle cx="5" cy="5" r="1.5" fill="#0a84ff"></circle>
+                                <g class="scan-guide" id="scan-guide">
+                                    <path
+                                        id="scan-path"
+                                        class="scan-path"
+                                        fill="none"
+                                        stroke="#0a84ff"
+                                        stroke-width="0.8"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        pathLength="100"
+                                        stroke-dasharray="100"
+                                    ></path>
+                                    <circle cx="5" cy="5" r="1.5" fill="#0a84ff"></circle>
+                                </g>
                             </svg>
                         </div>
                     </article>
@@ -598,6 +608,7 @@
             pixelCanvas: document.querySelector("#pixel-canvas"),
             pixelFrame: document.querySelector("#pixel-frame"),
             matrixCells: document.querySelector("#matrix-cells"),
+            scanGuide: document.querySelector("#scan-guide"),
             scanPath: document.querySelector("#scan-path"),
             totalZeros: document.querySelector("#total-zeros"),
             maxZeroRun: document.querySelector("#max-zero-run"),
@@ -765,8 +776,10 @@
 
             // Restart the drawing animation whenever the block or scan order changes.
             elements.scanPath.classList.remove("scan-path");
-            void elements.scanPath.getBoundingClientRect();
+            elements.scanGuide.classList.remove("scan-guide");
+            void elements.scanGuide.getBoundingClientRect();
             elements.scanPath.classList.add("scan-path");
+            elements.scanGuide.classList.add("scan-guide");
         }
 
         function renderStats(values) {

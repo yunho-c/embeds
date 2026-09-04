@@ -200,8 +200,13 @@
             pointer-events: none;
         }
 
-        .scan-path {
-            animation: draw-path var(--scan-draw-duration) linear forwards;
+        .scan-draw-mask {
+            animation: draw-path var(--path-duration) linear var(--path-delay, 0ms) forwards;
+        }
+
+        .scan-omitted-path {
+            opacity: 0.32;
+            stroke-dasharray: 2.4 2.4;
         }
 
         .scan-guide {
@@ -357,10 +362,14 @@
                 animation-iteration-count: 1 !important;
             }
 
-            .scan-path,
+            .scan-draw-mask,
             .scan-guide,
             .sequence-cell {
                 animation: none !important;
+            }
+
+            .scan-draw-mask {
+                stroke-dashoffset: 0;
             }
 
             .sequence-cell {
@@ -387,20 +396,58 @@
                     </article>
 
                     <article class="panel representation-panel">
-                        <div class="representation-frame matrix" role="img" aria-label="An 8 by 8 quantized DCT coefficient block with its scan path">
+                        <div class="representation-frame matrix" role="img" aria-label="An 8 by 8 quantized DCT coefficient block. The scan path is solid through the final non-zero coefficient and dashed across trailing zeros.">
                             <div class="matrix-cells" id="matrix-cells"></div>
                             <svg class="scan-overlay" viewBox="0 0 80 80" aria-hidden="true">
+                                <defs>
+                                    <mask id="recorded-path-mask" maskUnits="userSpaceOnUse" x="-2" y="-2" width="84" height="84">
+                                        <path
+                                            id="recorded-mask-path"
+                                            class="scan-draw-mask"
+                                            fill="none"
+                                            stroke="#fff"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            pathLength="100"
+                                            stroke-dasharray="100"
+                                            stroke-dashoffset="100"
+                                        ></path>
+                                    </mask>
+                                    <mask id="omitted-path-mask" maskUnits="userSpaceOnUse" x="-2" y="-2" width="84" height="84">
+                                        <path
+                                            id="omitted-mask-path"
+                                            class="scan-draw-mask"
+                                            fill="none"
+                                            stroke="#fff"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            pathLength="100"
+                                            stroke-dasharray="100"
+                                            stroke-dashoffset="100"
+                                        ></path>
+                                    </mask>
+                                </defs>
                                 <g class="scan-guide" id="scan-guide">
                                     <path
-                                        id="scan-path"
-                                        class="scan-path"
+                                        id="recorded-scan-path"
                                         fill="none"
                                         stroke="#0a84ff"
                                         stroke-width="0.8"
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
-                                        pathLength="100"
-                                        stroke-dasharray="100"
+                                        mask="url(#recorded-path-mask)"
+                                    ></path>
+                                    <path
+                                        id="omitted-scan-path"
+                                        class="scan-omitted-path"
+                                        fill="none"
+                                        stroke="#0a84ff"
+                                        stroke-width="0.8"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        mask="url(#omitted-path-mask)"
                                     ></path>
                                     <circle cx="5" cy="5" r="1.5" fill="#0a84ff"></circle>
                                 </g>
@@ -517,7 +564,10 @@
             pixelFrame: document.querySelector("#pixel-frame"),
             matrixCells: document.querySelector("#matrix-cells"),
             scanGuide: document.querySelector("#scan-guide"),
-            scanPath: document.querySelector("#scan-path"),
+            recordedScanPath: document.querySelector("#recorded-scan-path"),
+            omittedScanPath: document.querySelector("#omitted-scan-path"),
+            recordedMaskPath: document.querySelector("#recorded-mask-path"),
+            omittedMaskPath: document.querySelector("#omitted-mask-path"),
             sequence: document.querySelector("#sequence")
         };
 
@@ -645,20 +695,51 @@
             );
         }
 
-        function renderPath(order) {
+        function getPathData(order) {
             const points = order.map((index) => {
                 const column = index % 8;
                 const row = Math.floor(index / 8);
                 return `${column * 10 + 5},${row * 10 + 5}`;
             });
 
-            elements.scanPath.setAttribute("d", `M ${points.join(" L ")}`);
+            return `M ${points.join(" L ")}`;
+        }
+
+        function renderPath(order, values) {
+            let finalRecordedPosition = values.length - 1;
+
+            while (finalRecordedPosition >= 0 && values[finalRecordedPosition] === 0) {
+                finalRecordedPosition -= 1;
+            }
+
+            // An all-zero AC block can emit EOB immediately at the first position.
+            finalRecordedPosition = Math.max(0, finalRecordedPosition);
+
+            const recordedOrder = order.slice(0, finalRecordedPosition + 1);
+            const omittedOrder = order.slice(finalRecordedPosition);
+            const cutoffProgress = getPathProgress(order)[finalRecordedPosition];
+            const recordedDuration = Math.round(cutoffProgress * SCAN_DRAW_DURATION_MS);
+            const omittedDuration = SCAN_DRAW_DURATION_MS - recordedDuration;
+            const recordedPathData = getPathData(recordedOrder);
+            const omittedPathData = getPathData(omittedOrder);
+
+            elements.recordedScanPath.setAttribute("d", recordedPathData);
+            elements.recordedMaskPath.setAttribute("d", recordedPathData);
+            elements.omittedScanPath.setAttribute("d", omittedPathData);
+            elements.omittedMaskPath.setAttribute("d", omittedPathData);
+
+            elements.recordedMaskPath.style.setProperty("--path-duration", `${Math.max(1, recordedDuration)}ms`);
+            elements.recordedMaskPath.style.setProperty("--path-delay", "0ms");
+            elements.omittedMaskPath.style.setProperty("--path-duration", `${Math.max(1, omittedDuration)}ms`);
+            elements.omittedMaskPath.style.setProperty("--path-delay", `${recordedDuration}ms`);
 
             // Restart the drawing animation whenever the block or scan order changes.
-            elements.scanPath.classList.remove("scan-path");
+            elements.recordedMaskPath.classList.remove("scan-draw-mask");
+            elements.omittedMaskPath.classList.remove("scan-draw-mask");
             elements.scanGuide.classList.remove("scan-guide");
             void elements.scanGuide.getBoundingClientRect();
-            elements.scanPath.classList.add("scan-path");
+            elements.recordedMaskPath.classList.add("scan-draw-mask");
+            elements.omittedMaskPath.classList.add("scan-draw-mask");
             elements.scanGuide.classList.add("scan-guide");
         }
 
@@ -721,7 +802,7 @@
             renderControls();
             renderPixelBlock(activeBlock);
             renderMatrix(activeBlock);
-            renderPath(activeScan.order);
+            renderPath(activeScan.order, orderedValues);
             renderSequence(orderedValues, activeScan.order);
         }
 

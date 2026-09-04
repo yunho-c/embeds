@@ -120,9 +120,6 @@
         }
 
         .visualization {
-            display: grid;
-            grid-template-columns: 5fr 7fr;
-            gap: 32px;
             margin-bottom: 32px;
         }
 
@@ -132,21 +129,50 @@
             background: #1c1c1e;
         }
 
-        .matrix-panel {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 32px;
+        .representations {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
         }
 
-        .matrix {
+        .representation-panel {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            padding: 24px;
+        }
+
+        .representation-frame {
             position: relative;
-            width: min(100%, 320px);
+            width: 100%;
             aspect-ratio: 1;
+            align-self: center;
             overflow: hidden;
             border: 1px solid #2c2c2e;
             border-radius: 12px;
             background: #000;
+        }
+
+        .pixel-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .pixel-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(to right, rgb(255 255 255 / 12%) 1px, transparent 1px),
+                linear-gradient(to bottom, rgb(255 255 255 / 12%) 1px, transparent 1px);
+            background-size: 12.5% 12.5%;
+            pointer-events: none;
+        }
+
+        .matrix {
+            position: relative;
         }
 
         .matrix-cells {
@@ -202,7 +228,7 @@
 
         .stats {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             align-content: center;
             gap: 16px;
         }
@@ -345,12 +371,14 @@
                 display: none;
             }
 
-            .visualization {
-                grid-template-columns: 1fr;
-            }
-
             .stats {
-                order: 2;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 720px) {
+            .representations {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -371,7 +399,7 @@
                 padding: 9px 14px;
             }
 
-            .matrix-panel,
+            .representation-panel,
             .sequence-panel {
                 padding: 24px;
             }
@@ -429,24 +457,33 @@
             </section>
 
             <section class="visualization" aria-label="Scan visualization">
-                <div class="panel matrix-panel">
-                    <div class="matrix" role="img" aria-label="An 8 by 8 quantized DCT coefficient block with its scan path">
-                        <div class="matrix-cells" id="matrix-cells"></div>
-                        <svg class="scan-overlay" viewBox="0 0 80 80" aria-hidden="true">
-                            <path
-                                id="scan-path"
-                                class="scan-path"
-                                fill="none"
-                                stroke="#0a84ff"
-                                stroke-width="0.8"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                pathLength="100"
-                                stroke-dasharray="100"
-                            ></path>
-                            <circle cx="5" cy="5" r="1.5" fill="#0a84ff"></circle>
-                        </svg>
-                    </div>
+                <div class="representations">
+                    <article class="panel representation-panel">
+                        <div class="representation-frame" id="pixel-frame" role="img">
+                            <canvas class="pixel-canvas" id="pixel-canvas" width="8" height="8"></canvas>
+                            <div class="pixel-grid" aria-hidden="true"></div>
+                        </div>
+                    </article>
+
+                    <article class="panel representation-panel">
+                        <div class="representation-frame matrix" role="img" aria-label="An 8 by 8 quantized DCT coefficient block with its scan path">
+                            <div class="matrix-cells" id="matrix-cells"></div>
+                            <svg class="scan-overlay" viewBox="0 0 80 80" aria-hidden="true">
+                                <path
+                                    id="scan-path"
+                                    class="scan-path"
+                                    fill="none"
+                                    stroke="#0a84ff"
+                                    stroke-width="0.8"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    pathLength="100"
+                                    stroke-dasharray="100"
+                                ></path>
+                                <circle cx="5" cy="5" r="1.5" fill="#0a84ff"></circle>
+                            </svg>
+                        </div>
+                    </article>
                 </div>
 
                 <div class="stats" aria-label="Sequence statistics" aria-live="polite">
@@ -511,10 +548,25 @@
             (_, index) => (index % 8) * 8 + Math.floor(index / 8)
         );
 
+        // Standard JPEG luminance quantization table scaled to quality 90.
+        // Keeping this step explicit makes the reconstruction usable for
+        // coefficients generated from a future image-upload workflow.
+        const LUMINANCE_QUANTIZATION_Q90 = [
+             3,  2,  2,  3,  5,  8, 10, 12,
+             2,  2,  3,  4,  5, 12, 12, 11,
+             3,  3,  3,  5,  8, 11, 14, 11,
+             3,  3,  4,  6, 10, 17, 16, 12,
+             4,  4,  7, 11, 14, 22, 21, 15,
+             5,  7, 11, 13, 16, 21, 23, 18,
+            10, 13, 16, 17, 21, 24, 24, 20,
+            14, 18, 19, 20, 22, 20, 21, 20
+        ];
+
         const BLOCKS = [
             {
                 id: 1,
                 name: "Smooth Gradient (Sky)",
+                chroma: { cb: 155, cr: 110 },
                 data: [
                     120, 22, 6, 2, 0, 0, 0, 0,
                     15, 5, 1, 0, 0, 0, 0, 0,
@@ -529,6 +581,7 @@
             {
                 id: 2,
                 name: "High Contrast (Edge)",
+                chroma: { cb: 110, cr: 155 },
                 data: [
                     65, -30, 15, -8, 4, -2, 1, 0,
                     -25, 18, -9, 5, -2, 1, 0, 0,
@@ -543,6 +596,7 @@
             {
                 id: 3,
                 name: "Flat Color (Wall)",
+                chroma: { cb: 100, cr: 145 },
                 data: [
                     85, 1, 0, 0, 0, 0, 0, 0,
                     -1, 0, 0, 0, 0, 0, 0, 0,
@@ -568,6 +622,8 @@
         const elements = {
             blockControls: document.querySelector("#block-controls"),
             scanControls: document.querySelector("#scan-controls"),
+            pixelCanvas: document.querySelector("#pixel-canvas"),
+            pixelFrame: document.querySelector("#pixel-frame"),
             matrixCells: document.querySelector("#matrix-cells"),
             scanPath: document.querySelector("#scan-path"),
             totalZeros: document.querySelector("#total-zeros"),
@@ -577,6 +633,54 @@
             nonzeroValues: document.querySelector("#nonzero-values"),
             sequence: document.querySelector("#sequence")
         };
+
+        function clampByte(value) {
+            return Math.max(0, Math.min(255, Math.round(value)));
+        }
+
+        function inverseDct(quantizedCoefficients) {
+            const coefficients = quantizedCoefficients.map(
+                (value, index) => value * LUMINANCE_QUANTIZATION_Q90[index]
+            );
+            const pixels = new Float32Array(64);
+
+            for (let y = 0; y < 8; y += 1) {
+                for (let x = 0; x < 8; x += 1) {
+                    let sum = 0;
+
+                    for (let v = 0; v < 8; v += 1) {
+                        for (let u = 0; u < 8; u += 1) {
+                            const horizontalScale = u === 0 ? Math.SQRT1_2 : 1;
+                            const verticalScale = v === 0 ? Math.SQRT1_2 : 1;
+                            const horizontalBasis = Math.cos(((2 * x + 1) * u * Math.PI) / 16);
+                            const verticalBasis = Math.cos(((2 * y + 1) * v * Math.PI) / 16);
+
+                            sum += horizontalScale
+                                * verticalScale
+                                * coefficients[v * 8 + u]
+                                * horizontalBasis
+                                * verticalBasis;
+                        }
+                    }
+
+                    // Reverse JPEG's level shift after the 8×8 inverse DCT.
+                    pixels[y * 8 + x] = clampByte(128 + sum / 4);
+                }
+            }
+
+            return pixels;
+        }
+
+        function luminanceToRgb(luminance, chroma) {
+            const cbOffset = chroma.cb - 128;
+            const crOffset = chroma.cr - 128;
+
+            return [
+                clampByte(luminance + 1.402 * crOffset),
+                clampByte(luminance - 0.344136 * cbOffset - 0.714136 * crOffset),
+                clampByte(luminance + 1.772 * cbOffset)
+            ];
+        }
 
         function getStats(values) {
             let zeros = 0;
@@ -652,6 +756,31 @@
             elements.matrixCells.replaceChildren(fragment);
         }
 
+        function renderPixelBlock(block) {
+            const luminanceValues = inverseDct(block.data);
+            const context = elements.pixelCanvas.getContext("2d");
+            const image = context.createImageData(8, 8);
+
+            luminanceValues.forEach((luminance, index) => {
+                const [red, green, blue] = luminanceToRgb(luminance, block.chroma);
+                const pixelOffset = index * 4;
+
+                image.data[pixelOffset] = red;
+                image.data[pixelOffset + 1] = green;
+                image.data[pixelOffset + 2] = blue;
+                image.data[pixelOffset + 3] = 255;
+            });
+
+            context.putImageData(image, 0, 0);
+
+            const minimum = Math.min(...luminanceValues);
+            const maximum = Math.max(...luminanceValues);
+            elements.pixelFrame.setAttribute(
+                "aria-label",
+                `${block.name} reconstructed in pixel space. Luminance ranges from ${minimum} to ${maximum}.`
+            );
+        }
+
         function renderPath(order) {
             const points = order.map((index) => {
                 const column = index % 8;
@@ -711,6 +840,7 @@
             const orderedValues = activeScan.order.map((index) => activeBlock.data[index]);
 
             renderControls();
+            renderPixelBlock(activeBlock);
             renderMatrix(activeBlock);
             renderPath(activeScan.order);
             renderStats(orderedValues);

@@ -52,18 +52,17 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 24px;
+            gap: 16px;
             margin-bottom: 32px;
-            padding: 8px;
-            border: 1px solid #2c2c2e;
-            border-radius: 999px;
-            background: #1c1c1e;
         }
 
         .button-group {
             display: flex;
             gap: 8px;
             padding: 4px;
+            border: 1px solid #2c2c2e;
+            border-radius: 999px;
+            background: #000;
         }
 
         .control-button {
@@ -89,34 +88,19 @@
             transform: scale(0.98);
         }
 
-        .block-button[aria-pressed="true"] {
-            background: #3a3a3c;
-            color: #fff;
-            box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
-        }
-
         .scan-controls {
             flex: 0 0 auto;
-            border: 1px solid #2c2c2e;
-            border-radius: 999px;
-            background: #000;
         }
 
         .scan-button {
             padding-inline: 24px;
         }
 
+        .block-button[aria-pressed="true"],
         .scan-button[aria-pressed="true"] {
             background: #2c2c2e;
             color: #0a84ff;
             box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
-        }
-
-        .divider {
-            width: 1px;
-            height: 32px;
-            flex: 0 0 auto;
-            background: #2c2c2e;
         }
 
         .visualization {
@@ -343,32 +327,21 @@
         @media (max-width: 900px) {
             .controls {
                 align-items: stretch;
-                border-radius: 16px;
                 flex-direction: column;
-                gap: 8px;
+                gap: 12px;
             }
 
-            .block-controls {
-                overflow-x: auto;
-            }
-
-            .block-button {
-                flex: 1 0 auto;
-            }
-
+            .block-controls,
             .scan-controls {
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
                 width: 100%;
             }
 
+            .block-button,
             .scan-button {
                 min-width: 0;
                 padding-inline: 12px;
-            }
-
-            .divider {
-                display: none;
             }
 
             .stats {
@@ -392,7 +365,8 @@
             }
 
             .block-controls {
-                flex-direction: column;
+                grid-template-columns: 1fr;
+                border-radius: 24px;
             }
 
             .control-button {
@@ -452,7 +426,6 @@
         <div class="container">
             <section class="controls" aria-label="Visualization controls">
                 <div class="button-group block-controls" id="block-controls" aria-label="DCT sample block"></div>
-                <div class="divider" aria-hidden="true"></div>
                 <div class="button-group scan-controls" id="scan-controls" aria-label="Scan order"></div>
             </section>
 

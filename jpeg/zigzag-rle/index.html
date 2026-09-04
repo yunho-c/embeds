@@ -269,7 +269,7 @@
             font-weight: 500;
         }
 
-        .sequence-cell.rle-zero {
+        .sequence-cell.omitted-zero {
             --reveal-from-opacity: 0.12;
             --reveal-to-opacity: 0.6;
             border-color: #3a3a3c;
@@ -705,7 +705,7 @@
             return `M ${points.join(" L ")}`;
         }
 
-        function renderPath(order, values) {
+        function getFinalRecordedPosition(values) {
             let finalRecordedPosition = values.length - 1;
 
             while (finalRecordedPosition >= 0 && values[finalRecordedPosition] === 0) {
@@ -713,7 +713,11 @@
             }
 
             // An all-zero AC block can emit EOB immediately at the first position.
-            finalRecordedPosition = Math.max(0, finalRecordedPosition);
+            return Math.max(0, finalRecordedPosition);
+        }
+
+        function renderPath(order, values) {
+            const finalRecordedPosition = getFinalRecordedPosition(values);
 
             const recordedOrder = order.slice(0, finalRecordedPosition + 1);
             const omittedOrder = order.slice(finalRecordedPosition);
@@ -763,10 +767,11 @@
         function renderSequence(values, order) {
             const fragment = document.createDocumentFragment();
             const pathProgress = getPathProgress(order);
+            const finalRecordedPosition = getFinalRecordedPosition(values);
 
             values.forEach((value, index) => {
                 const isZero = value === 0;
-                const followsZero = isZero && index > 0 && values[index - 1] === 0;
+                const isOmittedTrailingZero = isZero && index > finalRecordedPosition;
                 const cell = document.createElement("div");
                 cell.className = "sequence-cell";
                 cell.style.setProperty(
@@ -776,8 +781,8 @@
 
                 if (!isZero) {
                     cell.classList.add("nonzero");
-                } else if (followsZero) {
-                    cell.classList.add("rle-zero");
+                } else if (isOmittedTrailingZero) {
+                    cell.classList.add("omitted-zero");
                 }
 
                 const sequenceIndex = document.createElement("span");

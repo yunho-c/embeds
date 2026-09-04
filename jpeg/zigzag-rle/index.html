@@ -7,6 +7,7 @@
     <title>JPEG Zig-Zag Scan and Run-Length Encoding</title>
     <style>
         :root {
+            --scan-draw-duration: 2500ms;
             color-scheme: dark;
             font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: #000;
@@ -200,12 +201,12 @@
         }
 
         .scan-path {
-            animation: draw-path 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+            animation: draw-path var(--scan-draw-duration) linear forwards;
         }
 
         .scan-guide {
             opacity: 0.8;
-            animation: fade-guide 500ms ease 3s forwards;
+            animation: fade-guide 500ms ease calc(var(--scan-draw-duration) + 500ms) forwards;
         }
 
         @keyframes draw-path {
@@ -237,6 +238,8 @@
         }
 
         .sequence-cell {
+            --reveal-from-opacity: 0.24;
+            --reveal-to-opacity: 1;
             display: flex;
             width: 40px;
             height: 48px;
@@ -250,7 +253,8 @@
             color: #8e8e93;
             font-size: 14px;
             line-height: 16px;
-            transition: opacity 240ms ease, border-color 240ms ease, background-color 240ms ease;
+            animation: reveal-sequence-cell 220ms ease-out var(--reveal-delay, 0ms) both;
+            transition: border-color 240ms ease, background-color 240ms ease;
         }
 
         .sequence-cell.nonzero {
@@ -261,11 +265,17 @@
         }
 
         .sequence-cell.rle-zero {
+            --reveal-from-opacity: 0.12;
+            --reveal-to-opacity: 0.6;
             border-color: #3a3a3c;
             border-style: dashed;
             background: transparent;
             color: #48484a;
-            opacity: 0.6;
+        }
+
+        @keyframes reveal-sequence-cell {
+            from { opacity: var(--reveal-from-opacity); }
+            to { opacity: var(--reveal-to-opacity); }
         }
 
         .sequence-index {
@@ -345,6 +355,16 @@
                 transition-duration: 0.01ms !important;
                 animation-duration: 0.01ms !important;
                 animation-iteration-count: 1 !important;
+            }
+
+            .scan-path,
+            .scan-guide,
+            .sequence-cell {
+                animation: none !important;
+            }
+
+            .sequence-cell {
+                opacity: var(--reveal-to-opacity);
             }
         }
     </style>
@@ -485,6 +505,7 @@
             { id: "col", label: "Col-Major", order: COLUMN_ORDER },
             { id: "zigzag", label: "Zig-Zag", order: ZIGZAG_ORDER }
         ];
+        const SCAN_DRAW_DURATION_MS = 2500;
 
         let activeBlockId = 1;
         let activeScanId = "zigzag";
@@ -641,14 +662,36 @@
             elements.scanGuide.classList.add("scan-guide");
         }
 
-        function renderSequence(values) {
+        function getPathProgress(order) {
+            const cumulativeDistances = [0];
+            let totalDistance = 0;
+
+            for (let index = 1; index < order.length; index += 1) {
+                const previous = order[index - 1];
+                const current = order[index];
+                const columnDistance = (current % 8) - (previous % 8);
+                const rowDistance = Math.floor(current / 8) - Math.floor(previous / 8);
+
+                totalDistance += Math.hypot(columnDistance, rowDistance);
+                cumulativeDistances.push(totalDistance);
+            }
+
+            return cumulativeDistances.map((distance) => distance / totalDistance);
+        }
+
+        function renderSequence(values, order) {
             const fragment = document.createDocumentFragment();
+            const pathProgress = getPathProgress(order);
 
             values.forEach((value, index) => {
                 const isZero = value === 0;
                 const followsZero = isZero && index > 0 && values[index - 1] === 0;
                 const cell = document.createElement("div");
                 cell.className = "sequence-cell";
+                cell.style.setProperty(
+                    "--reveal-delay",
+                    `${Math.round(pathProgress[index] * SCAN_DRAW_DURATION_MS)}ms`
+                );
 
                 if (!isZero) {
                     cell.classList.add("nonzero");
@@ -679,7 +722,7 @@
             renderPixelBlock(activeBlock);
             renderMatrix(activeBlock);
             renderPath(activeScan.order);
-            renderSequence(orderedValues);
+            renderSequence(orderedValues, activeScan.order);
         }
 
         buildControls();

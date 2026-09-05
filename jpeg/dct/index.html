@@ -43,8 +43,14 @@
             opacity: 1;
         }
 
-        #signalDescription:empty {
+        #signalDescription:empty,
+        #basisDescription:empty,
+        #uploadStatus:empty {
             display: none;
+        }
+
+        #signalCanvas {
+            image-rendering: pixelated;
         }
 
         /* Apple-style range slider */
@@ -85,14 +91,15 @@
 
             <!-- Left Column: Signal -->
             <div class="apple-card rounded-3xl p-6 md:p-8 w-full md:w-1/2 flex flex-col items-center">
-                <div class="flex justify-between w-full items-center mb-6">
+                <div class="flex flex-wrap gap-3 justify-between w-full items-center mb-6">
                     <h2 class="text-xl font-medium" id="signalTitle">Image Signal</h2>
 
                     <div class="relative">
-                        <select id="imageSelect" class="appearance-none bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-full py-1.5 pl-4 pr-8 transition cursor-pointer outline-none">
+                        <select id="imageSelect" aria-label="Image source" class="appearance-none bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-full py-1.5 pl-4 pr-8 transition cursor-pointer outline-none">
                             <option value="edge">Pattern: Edge</option>
                             <option value="gradient">Pattern: Gradient</option>
                             <option value="checker">Pattern: High Freq</option>
+                            <option value="custom" hidden>Custom Image</option>
                             <option value="upload">Upload Custom...</option>
                         </select>
                         <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -104,6 +111,7 @@
                     <canvas id="signalCanvas" width="256" height="256" class="w-full h-full object-contain"></canvas>
                 </div>
 
+                <p id="uploadStatus" role="status" class="text-sm text-[#86868B] mt-3 text-center"></p>
                 <p id="signalDescription" class="text-sm text-[#86868B] mt-6 text-center h-10"></p>
 
                 <!-- Mode Toggle -->
@@ -124,7 +132,7 @@
                     <!-- Canvas elements injected via JS -->
                 </div>
 
-                <p class="text-sm text-[#86868B] mt-6 text-center">
+                <p id="basisDescription" class="text-sm text-[#86868B] mt-6 text-center">
                     64 basis functions in zigzag order (Low to High Frequencies).
                 </p>
             </div>
@@ -132,17 +140,17 @@
 
         <!-- Controls -->
         <div class="apple-card rounded-3xl p-6 w-full flex flex-col md:flex-row items-center gap-6">
-            <button id="playBtn" class="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-gray-900 text-white rounded-full hover:scale-105 transition transform shadow-md">
+            <button id="playBtn" aria-label="Play animation" class="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-gray-900 text-white rounded-full hover:scale-105 transition transform shadow-md">
                 <svg id="playIcon" class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg id="pauseIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
 
             <div class="flex-grow w-full flex flex-col gap-2">
-                <input type="range" id="stepSlider" min="0" max="64" value="0" class="w-full">
+                <input type="range" id="stepSlider" aria-label="Frequency step" min="0" max="64" value="0" class="w-full">
                 <div class="flex justify-between text-xs text-[#86868B] font-medium uppercase tracking-wider">
-                    <span>Original Signal</span>
+                    <span id="startLabel">Original Signal</span>
                     <span>Step <span id="stepLabel" class="text-gray-900">0</span> / 64</span>
-                    <span>Flat Residual</span>
+                    <span id="endLabel">Flat Residual</span>
                 </div>
             </div>
         </div>
@@ -161,14 +169,28 @@
             [5,6], [4,7], [5,7], [6,6], [7,5], [7,6], [6,7], [7,7]
         ];
 
-        // Core State
-        let state = {
+        const MAX_IMAGE_DIMENSION = 256;
+        const BLOCK_SIZE = 8;
+        const CHANNELS = 3;
+        const BLOCK_VALUES = 64 * CHANNELS;
+
+        // RGB values are interleaved within each block; coefficients use zigzag order.
+        const state = {
             step: 0,
             isPlaying: false,
             mode: 'subtract', // 'subtract' or 'add'
-            originalData: new Float32Array(64), // 8x8 image pixels [0, 255]
-            coeffs: new Float32Array(64),       // DCT coefficients in zigzag order
-            animationId: null
+            source: 'edge',
+            width: 8,
+            height: 8,
+            blocksAcross: 1,
+            blocksDown: 1,
+            originalData: new Float32Array(BLOCK_VALUES),
+            coeffs: new Float64Array(BLOCK_VALUES),
+            accumulated: new Float64Array(BLOCK_VALUES),
+            accumulatedStep: 0,
+            animationId: null,
+            renderRequest: null,
+            uploadVersion: 0
         };
 
         // DOM Elements
@@ -186,14 +208,21 @@
             btnSubtract: document.getElementById('btnSubtract'),
             btnAdd: document.getElementById('btnAdd'),
             signalTitle: document.getElementById('signalTitle'),
-            signalDescription: document.getElementById('signalDescription')
+            signalDescription: document.getElementById('signalDescription'),
+            uploadStatus: document.getElementById('uploadStatus'),
+            basisDescription: document.getElementById('basisDescription'),
+            startLabel: document.getElementById('startLabel'),
+            endLabel: document.getElementById('endLabel')
         };
 
         const ctxSignal = DOM.signalCanvas.getContext('2d');
+        const pixelCanvas = document.createElement('canvas');
+        const pixelContext = pixelCanvas.getContext('2d');
+        let renderedPixels;
         const basisElements = [];
 
         // Precompute Cosine lookup table for performance
-        const cosCache = new Float32Array(8 * 8);
+        const cosCache = new Float64Array(8 * 8);
         for (let i = 0; i < 8; i++) {
             for (let j = 0; j < 8; j++) {
                 cosCache[i * 8 + j] = Math.cos(((2 * i + 1) * j * Math.PI) / 16);
@@ -201,6 +230,18 @@
         }
         function getCos(val, freq) { return cosCache[val * 8 + freq]; }
         function alpha(x) { return x === 0 ? 1 / Math.sqrt(2) : 1; }
+
+        // The same normalized spatial basis serves every block and RGB channel.
+        const spatialBasis = ZIGZAG.map(([u, v]) => {
+            const values = new Float64Array(64);
+            const scale = 0.25 * alpha(u) * alpha(v);
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    values[y * 8 + x] = scale * getCos(x, u) * getCos(y, v);
+                }
+            }
+            return values;
+        });
 
         // Example Patterns Generators
         const patterns = {
@@ -243,79 +284,121 @@
             }
         }
 
-        function computeDCT() {
-            for (let i = 0; i < 64; i++) {
-                const u = ZIGZAG[i][0];
-                const v = ZIGZAG[i][1];
-                let sum = 0;
-                for (let y = 0; y < 8; y++) {
-                    for (let x = 0; x < 8; x++) {
-                        // Using -128 shift natively standard in JPEG for symmetric centering
-                        const pixel = state.originalData[y * 8 + x] - 128;
-                        sum += pixel * getCos(x, u) * getCos(y, v);
+        function loadImageData(imageData, source) {
+            pause();
+            state.width = imageData.width;
+            state.height = imageData.height;
+            state.source = source;
+            state.blocksAcross = Math.ceil(state.width / BLOCK_SIZE);
+            state.blocksDown = Math.ceil(state.height / BLOCK_SIZE);
+            const valueCount = state.blocksAcross * state.blocksDown * BLOCK_VALUES;
+            state.originalData = new Float32Array(valueCount);
+            state.coeffs = new Float64Array(valueCount);
+            state.accumulated = new Float64Array(valueCount);
+            state.accumulatedStep = 0;
+
+            for (let by = 0; by < state.blocksDown; by++) {
+                for (let bx = 0; bx < state.blocksAcross; bx++) {
+                    const blockOffset = (by * state.blocksAcross + bx) * BLOCK_VALUES;
+                    for (let y = 0; y < 8; y++) {
+                        for (let x = 0; x < 8; x++) {
+                            // Repeat edge pixels for partial blocks; display only the original extent.
+                            const sx = Math.min(bx * 8 + x, state.width - 1);
+                            const sy = Math.min(by * 8 + y, state.height - 1);
+                            const src = (sy * state.width + sx) * 4;
+                            const dst = blockOffset + (y * 8 + x) * CHANNELS;
+                            for (let c = 0; c < CHANNELS; c++) {
+                                state.originalData[dst + c] = imageData.data[src + c];
+                            }
+                        }
                     }
                 }
-                state.coeffs[i] = 0.25 * alpha(u) * alpha(v) * sum;
+            }
+
+            computeDCT();
+            pixelCanvas.width = state.width;
+            pixelCanvas.height = state.height;
+            renderedPixels = pixelContext.createImageData(state.width, state.height);
+            const displayScale = source === 'custom' ? 1 : 32;
+            DOM.signalCanvas.width = state.width * displayScale;
+            DOM.signalCanvas.height = state.height * displayScale;
+            state.step = 0;
+            DOM.imageSelect.value = source;
+            DOM.uploadStatus.textContent = '';
+            DOM.basisDescription.textContent = source === 'custom'
+                ? ''
+                : '64 basis functions in zigzag order (Low to High Frequencies).';
+            updateVisualization();
+        }
+
+        function computeDCT() {
+            for (let block = 0; block < state.originalData.length; block += BLOCK_VALUES) {
+                for (let i = 0; i < 64; i++) {
+                    const basis = spatialBasis[i];
+                    let r = 0, g = 0, b = 0;
+                    for (let pixel = 0; pixel < 64; pixel++) {
+                        const src = block + pixel * CHANNELS;
+                        const weight = basis[pixel];
+                        r += (state.originalData[src] - 128) * weight;
+                        g += (state.originalData[src + 1] - 128) * weight;
+                        b += (state.originalData[src + 2] - 128) * weight;
+                    }
+                    const dst = block + i * CHANNELS;
+                    state.coeffs[dst] = r;
+                    state.coeffs[dst + 1] = g;
+                    state.coeffs[dst + 2] = b;
+                }
             }
         }
 
-        // Generate IDCT component for a specific basis (returns an 8x8 array)
-        function getIDCTComponent(index) {
-            const u = ZIGZAG[index][0];
-            const v = ZIGZAG[index][1];
-            const coeff = state.coeffs[index];
-            const component = new Float32Array(64);
-
-            for (let y = 0; y < 8; y++) {
-                for (let x = 0; x < 8; x++) {
-                    component[y * 8 + x] = 0.25 * alpha(u) * alpha(v) * coeff * getCos(x, u) * getCos(y, v);
+        function accumulateToStep(step) {
+            // Keep unclamped sums so reverse scrubbing and mode changes retain the signal.
+            if (step === 0 || step < Math.abs(step - state.accumulatedStep)) {
+                state.accumulated.fill(0);
+                state.accumulatedStep = 0;
+            }
+            const direction = step >= state.accumulatedStep ? 1 : -1;
+            const first = Math.min(step, state.accumulatedStep);
+            const last = Math.max(step, state.accumulatedStep);
+            for (let block = 0; block < state.coeffs.length; block += BLOCK_VALUES) {
+                for (let i = first; i < last; i++) {
+                    const basis = spatialBasis[i];
+                    const src = block + i * CHANNELS;
+                    const r = state.coeffs[src] * direction;
+                    const g = state.coeffs[src + 1] * direction;
+                    const b = state.coeffs[src + 2] * direction;
+                    for (let pixel = 0; pixel < 64; pixel++) {
+                        const dst = block + pixel * CHANNELS;
+                        const weight = basis[pixel];
+                        state.accumulated[dst] += r * weight;
+                        state.accumulated[dst + 1] += g * weight;
+                        state.accumulated[dst + 2] += b * weight;
+                    }
                 }
             }
-            return component;
+            state.accumulatedStep = step;
         }
 
         function updateVisualization() {
+            cancelAnimationFrame(state.renderRequest);
+            state.renderRequest = null;
             const step = state.step;
             DOM.slider.value = step;
             DOM.stepLabel.textContent = step;
-
-            let currentSignal = new Float32Array(64);
-
-            if (state.mode === 'subtract') {
-                // Subtract mode: start with original, subtract IDCT components
-                currentSignal.set(state.originalData);
-                for (let i = 0; i < step; i++) {
-                    const comp = getIDCTComponent(i);
-                    for (let j = 0; j < 64; j++) {
-                        currentSignal[j] -= comp[j];
-                    }
-                }
-            } else {
-                // Add mode: start with 128 (DC offset), add IDCT components
-                currentSignal.fill(128);
-                for (let i = 0; i < step; i++) {
-                    const comp = getIDCTComponent(i);
-                    for (let j = 0; j < 64; j++) {
-                        currentSignal[j] += comp[j];
-                    }
-                }
-            }
-
-            // Render to Left Canvas
-            renderSignalCanvas(currentSignal, step);
+            accumulateToStep(step);
+            renderSignalCanvas();
+            DOM.startLabel.textContent = state.mode === 'subtract' ? 'Original Signal' : 'Flat Gray';
+            DOM.endLabel.textContent = state.mode === 'subtract' ? 'Flat Residual' : 'Original Image';
 
             // Update UI Text
             if (state.mode === 'subtract') {
                 DOM.signalTitle.textContent = step === 0 ? "Original Image" : "Transient Residual";
-                DOM.signalDescription.textContent = step === 0
-                    ? ""
-                    : step === 64 ? "All frequencies removed. Flat gray (zero residual) remains."
-                    : `Subtracting frequency components. Showing remaining residual shifted to gray.`;
+                DOM.signalDescription.textContent = "";
             } else {
                 DOM.signalTitle.textContent = step === 64 ? "Reconstructed Image" : "Building Image";
                 DOM.signalDescription.textContent = step === 0
                     ? ""
-                    : step === 64 ? "Perfect reconstruction of the original image."
+                    : step === 64 ? "All 64 components restored."
                     : `Adding frequency components cumulatively to build the image.`;
             }
 
@@ -335,29 +418,29 @@
             });
         }
 
-        function renderSignalCanvas(data, step) {
-            const blockSize = 32; // 256 / 8
-            for (let y = 0; y < 8; y++) {
-                for (let x = 0; x < 8; x++) {
-                    let val = data[y * 8 + x];
-
-                    // In Subtract mode, we show residuals shifted so 0 = gray.
-                    // Except at step 0, where we just show the unadulterated image.
-                    if (state.mode === 'subtract' && step > 0) {
-                        // Calculate offset. DC is handled natively by the math,
-                        // but displaying transient residuals usually centers around 128.
-                        // Since we subtract from original, perfect subtraction yields exactly 128 (if DC subtracted) or 0 (if offset).
-                        // Since we didn't shift original signal by -128 physically, subtracting components directly brings it to 128.
+        function renderSignalCanvas() {
+            const pixels = renderedPixels.data;
+            for (let y = 0; y < state.height; y++) {
+                for (let x = 0; x < state.width; x++) {
+                    const block = Math.floor(y / 8) * state.blocksAcross + Math.floor(x / 8);
+                    const src = block * BLOCK_VALUES + ((y % 8) * 8 + x % 8) * CHANNELS;
+                    const dst = (y * state.width + x) * 4;
+                    for (let c = 0; c < CHANNELS; c++) {
+                        const value = state.mode === 'subtract'
+                            ? state.originalData[src + c] - state.accumulated[src + c]
+                            : 128 + state.accumulated[src + c];
+                        pixels[dst + c] = Math.round(value); // ImageData clamps only the display.
                     }
-
-                    // Clamp to display bounds
-                    val = Math.max(0, Math.min(255, val));
-                    ctxSignal.fillStyle = `rgb(${val},${val},${val})`;
-                    ctxSignal.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+                    pixels[dst + 3] = 255;
                 }
             }
+            pixelContext.putImageData(renderedPixels, 0, 0);
+            ctxSignal.imageSmoothingEnabled = false;
+            ctxSignal.drawImage(pixelCanvas, 0, 0, DOM.signalCanvas.width, DOM.signalCanvas.height);
 
-            // Draw subtle Grid Lines to emphasize 8x8
+            // Keep the enlarged pixel grid for the original single-block presets.
+            if (state.source === 'custom') return;
+            const blockSize = 32;
             ctxSignal.strokeStyle = 'rgba(0, 0, 0, 0.08)';
             ctxSignal.lineWidth = 1;
             for (let i = 1; i < 8; i++) {
@@ -367,24 +450,29 @@
         }
 
         function loadPattern(patternName) {
+            state.uploadVersion++;
             const gen = patterns[patternName];
+            const imageData = new ImageData(8, 8);
             for (let y = 0; y < 8; y++) {
                 for (let x = 0; x < 8; x++) {
-                    state.originalData[y * 8 + x] = gen(x, y);
+                    const offset = (y * 8 + x) * 4;
+                    const value = gen(x, y);
+                    imageData.data.set([value, value, value, 255], offset);
                 }
             }
-            computeDCT();
-            state.step = 0;
-            pause();
-            updateVisualization();
+            loadImageData(imageData, patternName);
         }
 
         function togglePlay() {
             if (state.isPlaying) {
                 pause();
             } else {
-                if (state.step >= 64) state.step = 0;
+                if (state.step >= 64) {
+                    state.step = 0;
+                    updateVisualization();
+                }
                 state.isPlaying = true;
+                DOM.playBtn.setAttribute('aria-label', 'Pause animation');
                 DOM.playIcon.classList.add('hidden');
                 DOM.pauseIcon.classList.remove('hidden');
 
@@ -392,6 +480,7 @@
                     if (state.step < 64) {
                         state.step++;
                         updateVisualization();
+                        if (state.step === 64) pause();
                     } else {
                         pause();
                     }
@@ -402,6 +491,7 @@
         function pause() {
             state.isPlaying = false;
             clearInterval(state.animationId);
+            DOM.playBtn.setAttribute('aria-label', 'Play animation');
             DOM.playIcon.classList.remove('hidden');
             DOM.pauseIcon.classList.add('hidden');
         }
@@ -418,45 +508,53 @@
             updateVisualization();
         }
 
-        function handleImageUpload(e) {
+        async function handleImageUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (event) => {
+            // Reset after capturing the File so the same image can be selected again.
+            DOM.fileInput.value = '';
+            const version = ++state.uploadVersion;
+            pause();
+            DOM.uploadStatus.textContent = 'Loading image…';
+            const url = URL.createObjectURL(file);
+            try {
                 const img = new Image();
-                img.onload = () => {
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = 8; tempCanvas.height = 8;
-                    const tCtx = tempCanvas.getContext('2d');
-                    // Downsample to 8x8
-                    tCtx.drawImage(img, 0, 0, 8, 8);
-                    const imgData = tCtx.getImageData(0, 0, 8, 8).data;
+                img.src = url;
+                await img.decode();
+                if (version !== state.uploadVersion) return;
 
-                    // Convert to Grayscale
-                    for (let i = 0; i < 64; i++) {
-                        const r = imgData[i * 4];
-                        const g = imgData[i * 4 + 1];
-                        const b = imgData[i * 4 + 2];
-                        state.originalData[i] = (r * 0.299 + g * 0.587 + b * 0.114);
-                    }
-
-                    computeDCT();
-                    state.step = 0;
-                    pause();
-                    updateVisualization();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-            DOM.imageSelect.value = "upload";
+                const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight));
+                const width = Math.max(1, Math.round(img.naturalWidth * scale));
+                const height = Math.max(1, Math.round(img.naturalHeight * scale));
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = width;
+                tempCanvas.height = height;
+                const context = tempCanvas.getContext('2d');
+                // The visualization uses opaque RGB. Composite transparent uploads on white.
+                context.fillStyle = '#fff';
+                context.fillRect(0, 0, width, height);
+                context.imageSmoothingEnabled = true;
+                context.imageSmoothingQuality = 'high';
+                context.drawImage(img, 0, 0, width, height);
+                loadImageData(context.getImageData(0, 0, width, height), 'custom');
+            } catch {
+                if (version === state.uploadVersion) {
+                    DOM.uploadStatus.textContent = 'Could not load this image. Try another file.';
+                    DOM.imageSelect.value = state.source;
+                }
+            } finally {
+                URL.revokeObjectURL(url);
+            }
         }
 
         // Bind Events
         DOM.slider.addEventListener('input', (e) => {
             state.step = parseInt(e.target.value);
             pause();
-            updateVisualization();
+            // Coalesce rapid slider events into one render per browser frame.
+            if (state.renderRequest === null) {
+                state.renderRequest = requestAnimationFrame(updateVisualization);
+            }
         });
 
         DOM.playBtn.addEventListener('click', togglePlay);
@@ -466,8 +564,10 @@
 
         DOM.imageSelect.addEventListener('change', (e) => {
             if (e.target.value === 'upload') {
+                // Upload is an action, allowing repeated uploads and leaving cancellation harmless.
+                DOM.imageSelect.value = state.source;
                 DOM.fileInput.click();
-            } else {
+            } else if (e.target.value !== 'custom') {
                 loadPattern(e.target.value);
             }
         });

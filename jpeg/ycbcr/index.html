@@ -236,10 +236,11 @@
     <div class="flex flex-wrap items-center justify-between gap-2 p-3 border-b border-border bg-muted/20">
 
       <!-- Image Switcher (shadcn Tabs-style pill group) -->
-      <div class="inline-flex h-9 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground" role="tablist">
+      <div class="inline-flex h-9 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground" role="group" aria-label="Image presets">
         <button
           type="button"
           data-index="0"
+          aria-pressed="true"
           class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background text-foreground shadow-sm"
         >
           Xinghai Bridge
@@ -247,6 +248,7 @@
         <button
           type="button"
           data-index="1"
+          aria-pressed="false"
           class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
         >
           Glenfinnan Viaduct
@@ -254,6 +256,7 @@
         <button
           type="button"
           data-index="2"
+          aria-pressed="false"
           class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
         >
           Snow Mountains
@@ -511,6 +514,7 @@
     // Application State
     const state = {
       currentIndex: 0,
+      displayedIndex: null,
       yLevel: 100,   // 0 to 200 (%)
       cbLevel: 100,  // 0 to 200 (%)
       crLevel: 100,  // 0 to 200 (%)
@@ -551,6 +555,11 @@
     const compareBadge = document.getElementById('compare-badge');
     const resetBtn = document.getElementById('reset-btn');
     const photoCredit = document.getElementById('photo-credit');
+    const presetButtons = [...document.querySelectorAll('.preset-btn')];
+    const presetImageCache = new Map();
+    let presetRequestId = 0;
+    let hoveredPresetIndex = null;
+    let focusedPresetIndex = null;
 
     const pixelHud = document.getElementById('pixel-hud');
     const swatchBox = document.getElementById('swatch-box');
@@ -777,19 +786,27 @@
     /**
      * Precompute ITU-R BT.601 full-range YCbCr buffers from an HTMLImageElement or fallback canvas
      */
-    function extractYCbCrBuffers(sourceDrawFn) {
+    function extractYCbCrBuffers(sourceDrawFn, width, height) {
+      const thumbnailScale = 384 / Math.max(width, height);
+      const buffers = {
+        width,
+        height,
+        thumbWidth: Math.max(1, Math.round(width * thumbnailScale)),
+        thumbHeight: Math.max(1, Math.round(height * thumbnailScale)),
+      };
+
       // 1. Main resolution buffer
       const offscreen = document.createElement('canvas');
-      offscreen.width = state.width;
-      offscreen.height = state.height;
+      offscreen.width = width;
+      offscreen.height = height;
       const oCtx = offscreen.getContext('2d');
-      sourceDrawFn(oCtx, state.width, state.height);
+      sourceDrawFn(oCtx, width, height);
 
-      const imgData = oCtx.getImageData(0, 0, state.width, state.height).data;
-      const numPixels = state.width * state.height;
-      state.origY = new Float32Array(numPixels);
-      state.origCb = new Float32Array(numPixels);
-      state.origCr = new Float32Array(numPixels);
+      const imgData = oCtx.getImageData(0, 0, width, height).data;
+      const numPixels = width * height;
+      buffers.origY = new Float32Array(numPixels);
+      buffers.origCb = new Float32Array(numPixels);
+      buffers.origCr = new Float32Array(numPixels);
 
       for (let i = 0, p = 0; i < imgData.length; i += 4, p++) {
         const r = imgData[i];
@@ -797,103 +814,139 @@
         const b = imgData[i + 2];
 
         // ITU-R BT.601 conversion
-        state.origY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
-        state.origCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-        state.origCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+        buffers.origY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
+        buffers.origCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        buffers.origCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
       }
 
       // 2. Thumbnail resolution buffer for the 3 channel cards
       const thumbCanvas = document.createElement('canvas');
-      thumbCanvas.width = state.thumbWidth;
-      thumbCanvas.height = state.thumbHeight;
+      thumbCanvas.width = buffers.thumbWidth;
+      thumbCanvas.height = buffers.thumbHeight;
       const tCtx = thumbCanvas.getContext('2d');
-      sourceDrawFn(tCtx, state.thumbWidth, state.thumbHeight);
+      sourceDrawFn(tCtx, buffers.thumbWidth, buffers.thumbHeight);
 
-      const tData = tCtx.getImageData(0, 0, state.thumbWidth, state.thumbHeight).data;
-      const numThumbPixels = state.thumbWidth * state.thumbHeight;
-      state.thumbOrigY = new Float32Array(numThumbPixels);
-      state.thumbOrigCb = new Float32Array(numThumbPixels);
-      state.thumbOrigCr = new Float32Array(numThumbPixels);
+      const tData = tCtx.getImageData(0, 0, buffers.thumbWidth, buffers.thumbHeight).data;
+      const numThumbPixels = buffers.thumbWidth * buffers.thumbHeight;
+      buffers.thumbOrigY = new Float32Array(numThumbPixels);
+      buffers.thumbOrigCb = new Float32Array(numThumbPixels);
+      buffers.thumbOrigCr = new Float32Array(numThumbPixels);
 
       for (let i = 0, p = 0; i < tData.length; i += 4, p++) {
         const r = tData[i];
         const g = tData[i + 1];
         const b = tData[i + 2];
 
-        state.thumbOrigY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
-        state.thumbOrigCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-        state.thumbOrigCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+        buffers.thumbOrigY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
+        buffers.thumbOrigCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        buffers.thumbOrigCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
       }
+      return buffers;
     }
 
     /**
-     * Load preset image by index with automatic fallback cascade
+     * Prepare each preset once, including its fallback, without changing the visible image.
      */
-    function loadPresetImage(index) {
-      state.currentIndex = index;
-      loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
-
+    function preparePresetImage(index) {
+      if (presetImageCache.has(index)) return presetImageCache.get(index);
       const preset = PRESET_IMAGES[index];
-      photoCredit.href = preset.creditUrl;
+      const entry = { buffers: null, promise: null };
+      presetImageCache.set(index, entry);
+      entry.promise = new Promise((resolve) => {
+        let urlIdx = 0;
 
-      // Update active tab styling
-      document.querySelectorAll('.preset-btn').forEach((btn, idx) => {
-        if (idx === index) {
-          btn.classList.add('bg-background', 'text-foreground', 'shadow-sm');
-          btn.classList.remove('hover:text-foreground');
-        } else {
-          btn.classList.remove('bg-background', 'text-foreground', 'shadow-sm');
-          btn.classList.add('hover:text-foreground');
-        }
-      });
-
-      let urlIdx = 0;
-
-      function tryNextUrl() {
-        if (urlIdx >= preset.urls.length) {
-          // Use procedural high-res scene if offline or blocked
-          setImageDimensions(640, 400);
-          extractYCbCrBuffers((ctx, w, h) => renderProceduralFallback(ctx, w, h, index));
-          finishLoad();
-          return;
+        function complete(sourceDrawFn, width, height) {
+          entry.buffers = extractYCbCrBuffers(sourceDrawFn, width, height);
+          resolve(entry.buffers);
         }
 
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+        function tryNextUrl() {
+          if (urlIdx >= preset.urls.length) {
+            complete((ctx, w, h) => renderProceduralFallback(ctx, w, h, index), 640, 400);
+            return;
+          }
 
-        img.onload = () => {
-          try {
-            // Preserve the whole photograph and let each canvas determine its frame height.
-            const scale = 720 / Math.max(img.naturalWidth, img.naturalHeight);
-            setImageDimensions(
-              Math.max(1, Math.round(img.naturalWidth * scale)),
-              Math.max(1, Math.round(img.naturalHeight * scale))
-            );
-
-            extractYCbCrBuffers((ctx, w, h) => {
-              ctx.drawImage(img, 0, 0, w, h);
-            });
-            finishLoad();
-          } catch (err) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const scale = 720 / Math.max(img.naturalWidth, img.naturalHeight);
+              complete(
+                (ctx, w, h) => ctx.drawImage(img, 0, 0, w, h),
+                Math.max(1, Math.round(img.naturalWidth * scale)),
+                Math.max(1, Math.round(img.naturalHeight * scale))
+              );
+            } catch {
+              urlIdx++;
+              tryNextUrl();
+            }
+          };
+          img.onerror = () => {
             urlIdx++;
             tryNextUrl();
-          }
-        };
+          };
+          img.src = preset.urls[urlIdx];
+        }
 
-        img.onerror = () => {
-          urlIdx++;
-          tryNextUrl();
-        };
-
-        img.src = preset.urls[urlIdx];
-      }
-
-      tryNextUrl();
+        tryNextUrl();
+      });
+      return entry;
     }
 
-    function finishLoad() {
+    function loadPresetImage(index) {
+      const requestId = ++presetRequestId;
+      if (state.displayedIndex === index) {
+        loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+        return;
+      }
+      const entry = preparePresetImage(index);
+      if (entry.buffers) {
+        finishLoad(index, entry.buffers);
+        return;
+      }
+      loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      entry.promise.then((buffers) => {
+        // A late download must never replace a newer hover or selection.
+        if (requestId === presetRequestId) finishLoad(index, buffers);
+      });
+    }
+
+    function finishLoad(index, buffers) {
+      Object.assign(state, buffers);
+      setImageDimensions(buffers.width, buffers.height);
+      state.displayedIndex = index;
+      photoCredit.href = PRESET_IMAGES[index].creditUrl;
       loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
       renderAllCanvases();
+    }
+
+    function updatePresetPreview() {
+      const index = hoveredPresetIndex ?? focusedPresetIndex ?? state.currentIndex;
+      const previewing = index !== state.currentIndex;
+      // Keep the selector still while previewing photographs with different aspect ratios.
+      if (previewing && !canvasViewport.style.height) {
+        [mainCanvas, yCanvas, cbCanvas, crCanvas].forEach((canvas) => {
+          const frame = canvas.parentElement;
+          frame.style.height = `${frame.getBoundingClientRect().height}px`;
+          canvas.style.height = '100%';
+          canvas.style.objectFit = 'contain';
+        });
+      } else if (!previewing) {
+        [mainCanvas, yCanvas, cbCanvas, crCanvas].forEach((canvas) => {
+          canvas.parentElement.style.removeProperty('height');
+          canvas.style.removeProperty('height');
+          canvas.style.removeProperty('object-fit');
+        });
+      }
+      presetButtons.forEach((btn, idx) => {
+        const selected = idx === state.currentIndex;
+        btn.classList.toggle('bg-background', selected);
+        btn.classList.toggle('text-foreground', selected);
+        btn.classList.toggle('shadow-sm', selected);
+        btn.classList.toggle('hover:text-foreground', !selected);
+        btn.setAttribute('aria-pressed', String(selected));
+      });
+      loadPresetImage(index);
     }
 
     /**
@@ -1044,14 +1097,43 @@
       });
     });
 
-    // Preset Image Tabs
-    document.querySelectorAll('.preset-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.getAttribute('data-index'), 10);
-        if (idx !== state.currentIndex) {
-          loadPresetImage(idx);
-        }
+    // Hover or keyboard focus previews a preset; only a click commits the selection.
+    presetButtons.forEach((btn) => {
+      const index = Number(btn.dataset.index);
+      btn.addEventListener('pointerenter', (event) => {
+        if (event.pointerType === 'touch' || event.buttons !== 0) return;
+        hoveredPresetIndex = index;
+        updatePresetPreview();
       });
+      btn.addEventListener('pointerleave', () => {
+        if (hoveredPresetIndex !== index) return;
+        hoveredPresetIndex = null;
+        updatePresetPreview();
+      });
+      btn.addEventListener('pointercancel', () => {
+        if (hoveredPresetIndex !== index) return;
+        hoveredPresetIndex = null;
+        updatePresetPreview();
+      });
+      btn.addEventListener('focus', () => {
+        if (!btn.matches(':focus-visible')) return;
+        focusedPresetIndex = index;
+        updatePresetPreview();
+      });
+      btn.addEventListener('blur', () => {
+        if (focusedPresetIndex !== index) return;
+        focusedPresetIndex = null;
+        updatePresetPreview();
+      });
+      btn.addEventListener('click', () => {
+        state.currentIndex = index;
+        updatePresetPreview();
+      });
+    });
+    window.addEventListener('blur', () => {
+      hoveredPresetIndex = null;
+      focusedPresetIndex = null;
+      updatePresetPreview();
     });
 
     // Solo Channel Plane Inspection Cards
@@ -1112,8 +1194,11 @@
     canvasViewport.addEventListener('mousemove', (e) => {
       if (!state.origY) return;
       const rect = mainCanvas.getBoundingClientRect();
-      const x = Math.min(state.width - 1, Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * state.width)));
-      const y = Math.min(state.height - 1, Math.max(0, Math.floor(((e.clientY - rect.top) / rect.height) * state.height)));
+      const scale = Math.min(rect.width / state.width, rect.height / state.height);
+      const imageLeft = rect.left + (rect.width - state.width * scale) / 2;
+      const imageTop = rect.top + (rect.height - state.height * scale) / 2;
+      const x = Math.min(state.width - 1, Math.max(0, Math.floor((e.clientX - imageLeft) / scale)));
+      const y = Math.min(state.height - 1, Math.max(0, Math.floor((e.clientY - imageTop) / scale)));
       const p = y * state.width + x;
 
       const scaleY  = state.yLevel / 100;
@@ -1150,7 +1235,11 @@
       updateSliderFill(sliderY);
       updateSliderFill(sliderCb);
       updateSliderFill(sliderCr);
-      loadPresetImage(0);
+      updatePresetPreview();
+      // Warm the other presets after the initial image is ready for immediate hover previews.
+      preparePresetImage(state.currentIndex).promise.then(() => {
+        PRESET_IMAGES.forEach((_, index) => preparePresetImage(index));
+      });
     };
   </script>
 </body>

@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YCbCr Color Space Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            border: "hsl(var(--border))",
+            input: "hsl(var(--input))",
+            ring: "hsl(var(--ring))",
+            background: "hsl(var(--background))",
+            foreground: "hsl(var(--foreground))",
+            primary: {
+              DEFAULT: "hsl(var(--primary))",
+              foreground: "hsl(var(--primary-foreground))",
+            },
+            secondary: {
+              DEFAULT: "hsl(var(--secondary))",
+              foreground: "hsl(var(--secondary-foreground))",
+            },
+            muted: {
+              DEFAULT: "hsl(var(--muted))",
+              foreground: "hsl(var(--muted-foreground))",
+            },
+            accent: {
+              DEFAULT: "hsl(var(--accent))",
+              foreground: "hsl(var(--accent-foreground))",
+            },
+            card: {
+              DEFAULT: "hsl(var(--card))",
+              foreground: "hsl(var(--card-foreground))",
+            },
+          },
+          borderRadius: {
+            lg: "var(--radius)",
+            md: "calc(var(--radius) - 2px)",
+            sm: "calc(var(--radius) - 4px)",
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 240 10% 3.9%;
+      --card: 0 0% 100%;
+      --card-foreground: 240 10% 3.9%;
+      --primary: 240 5.9% 10%;
+      --primary-foreground: 0 0% 98%;
+      --secondary: 240 4.8% 95.9%;
+      --secondary-foreground: 240 5.9% 10%;
+      --muted: 240 4.8% 95.9%;
+      --muted-foreground: 240 3.8% 46.1%;
+      --accent: 240 4.8% 95.9%;
+      --accent-foreground: 240 5.9% 10%;
+      --border: 240 5.9% 90%;
+      --input: 240 5.9% 90%;
+      --ring: 240 5.9% 10%;
+      --radius: 0.5rem;
+    }
+
+    .dark {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --card: 240 10% 3.9%;
+      --card-foreground: 0 0% 98%;
+      --primary: 0 0% 98%;
+      --primary-foreground: 240 5.9% 10%;
+      --secondary: 240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --muted: 240 3.7% 15.9%;
+      --muted-foreground: 240 5% 64.9%;
+      --accent: 240 3.7% 15.9%;
+      --accent-foreground: 0 0% 98%;
+      --border: 240 3.7% 15.9%;
+      --input: 240 3.7% 15.9%;
+      --ring: 240 4.9% 83.9%;
+    }
+
+    body {
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+      font-feature-settings: "rlig" 1, "calt" 1;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Authentic shadcn/ui Slider styling */
+    .shadcn-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 9999px;
+      background: hsl(var(--secondary));
+      outline: none;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .shadcn-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: hsl(var(--background));
+      border: 1.5px solid hsl(var(--primary));
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+      cursor: grab;
+      transition: transform 0.1s ease, box-shadow 0.15s ease;
+    }
+
+    .shadcn-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: hsl(var(--background));
+      border: 1.5px solid hsl(var(--primary));
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+      cursor: grab;
+      transition: transform 0.1s ease, box-shadow 0.15s ease;
+    }
+
+    .shadcn-slider:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+    }
+
+    .shadcn-slider:active::-webkit-slider-thumb {
+      cursor: grabbing;
+      transform: scale(1.06);
+    }
+
+    /* Subtle checkerboard background for canvas viewport */
+    .canvas-backdrop {
+      background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-2 sm:p-4 antialiased selection:bg-primary selection:text-primary-foreground">
+
+  <!-- Main Embed Card Container -->
+  <div class="w-full max-w-4xl rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden">
+
+    <!-- Top Bar: Preset Selector & Utility Actions -->
+    <div class="flex flex-wrap items-center justify-between gap-2 p-3 border-b border-border bg-muted/20">
+
+      <!-- Image Switcher (shadcn Tabs-style pill group) -->
+      <div class="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground" role="tablist">
+        <button
+          type="button"
+          data-index="0"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background text-foreground shadow-sm"
+        >
+          Xinghai Bridge
+        </button>
+        <button
+          type="button"
+          data-index="1"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
+        >
+          Glenfinnan Viaduct
+        </button>
+        <button
+          type="button"
+          data-index="2"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
+        >
+          Snow Mountains
+        </button>
+      </div>
+
+      <!-- Right Action Controls: Reset, Theme Toggle -->
+      <div class="flex items-center gap-1.5">
+        <!-- Reset Button -->
+        <button
+          id="reset-btn"
+          type="button"
+          title="Reset all levels to 100%"
+          aria-label="Reset all levels to 100%"
+          class="inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-8 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+
+        <!-- Dark/Light Theme Toggle -->
+        <button
+          id="theme-btn"
+          type="button"
+          aria-label="Toggle theme"
+          class="inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-8"
+        >
+          <svg id="sun-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12">
+
+      <!-- Left/Main Area: Composite Canvas + Live Channel Mini-Planes -->
+      <div class="lg:col-span-8 p-3 sm:p-4 flex flex-col gap-3 border-b lg:border-b-0 lg:border-r border-border bg-muted/10">
+
+        <!-- Main Composite Canvas Wrapper (Click/Hold to compare with Original) -->
+        <div
+          id="canvas-viewport"
+          title="Click and hold to compare with original"
+          class="relative w-full aspect-[16/10] rounded-lg border border-border overflow-hidden canvas-backdrop flex items-center justify-center bg-muted/30 group cursor-pointer select-none"
+        >
+          <canvas id="main-canvas" class="w-full h-full object-contain pointer-events-none"></canvas>
+
+          <!-- Loading Skeleton Overlay -->
+          <div id="loading-overlay" class="absolute inset-0 bg-background/80 backdrop-blur-xs flex items-center justify-center transition-opacity duration-200">
+            <div class="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+              <svg class="animate-spin h-4 w-4 text-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Loading image...</span>
+            </div>
+          </div>
+
+          <!-- Pixel Inspector Pill (shows on hover over canvas) -->
+          <div id="pixel-hud" class="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute bottom-2.5 left-2.5 flex items-center gap-2 rounded-md bg-background/90 backdrop-blur-md border border-border px-2.5 py-1 text-[11px] font-mono shadow-sm">
+            <span id="swatch-box" class="w-3 h-3 rounded-xs border border-border inline-block"></span>
+            <span id="hud-ycbcr" class="text-foreground">Y:-- Cb:-- Cr:--</span>
+            <span class="text-muted-foreground">|</span>
+            <span id="hud-rgb" class="text-muted-foreground">RGB(--, --, --)</span>
+          </div>
+
+          <!-- Original Badge Indicator (when Compare is active) -->
+          <div id="compare-badge" class="hidden pointer-events-none absolute top-2.5 left-2.5 rounded-md bg-primary text-primary-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider shadow-sm">
+            Original (100%)
+          </div>
+
+          <!-- Subtle Unsplash Attribution Pill -->
+          <a
+            id="photo-credit"
+            href="https://unsplash.com/photos/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="absolute bottom-2.5 right-2.5 rounded-md bg-background/80 hover:bg-background backdrop-blur-md border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors shadow-sm"
+          >
+            Unsplash ↗
+          </a>
+        </div>
+
+        <!-- 3 Live Decomposed Channel Planes (Click to solo/inspect) -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <!-- Y Plane -->
+          <button
+            type="button"
+            data-plane="y"
+            title="Click to toggle solo Y (Luma) preview"
+            class="plane-card group relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div class="aspect-[16/10] w-full bg-muted overflow-hidden">
+              <canvas id="y-canvas" class="w-full h-full object-cover"></canvas>
+            </div>
+          </button>
+
+          <!-- Cb Plane -->
+          <button
+            type="button"
+            data-plane="cb"
+            title="Click to toggle solo Cb (Blue-Difference) preview"
+            class="plane-card group relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div class="aspect-[16/10] w-full bg-muted overflow-hidden">
+              <canvas id="cb-canvas" class="w-full h-full object-cover"></canvas>
+            </div>
+          </button>
+
+          <!-- Cr Plane -->
+          <button
+            type="button"
+            data-plane="cr"
+            title="Click to toggle solo Cr (Red-Difference) preview"
+            class="plane-card group relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div class="aspect-[16/10] w-full bg-muted overflow-hidden">
+              <canvas id="cr-canvas" class="w-full h-full object-cover"></canvas>
+            </div>
+          </button>
+        </div>
+
+      </div>
+
+      <div class="lg:col-span-4 p-4 flex flex-col justify-between gap-6 bg-card">
+
+        <div class="space-y-5">
+          <!-- Y (Luminance) Slider Control -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="slider-y" class="text-xs font-medium leading-none flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-zinc-500 inline-block"></span>
+                <span>Y <span class="text-muted-foreground font-normal">Luminance</span></span>
+              </label>
+            </div>
+            <div class="relative flex items-center">
+              <span class="pointer-events-none absolute left-1/2 -translate-x-1/2 w-0.5 h-2.5 rounded-full bg-foreground/25 z-0"></span>
+              <input
+                id="slider-y"
+                type="range"
+                min="0"
+                max="200"
+                value="100"
+                step="1"
+                class="shadcn-slider z-10"
+              />
+            </div>
+            <div class="flex justify-between text-[10px] font-mono text-muted-foreground">
+              <span>0%</span>
+              <button type="button" data-reset="y" class="hover:text-foreground transition-colors">100%</button>
+              <span>200%</span>
+            </div>
+          </div>
+
+          <!-- Cb (Chroma Blue) Slider Control -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="slider-cb" class="text-xs font-medium leading-none flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                <span>Cb <span class="text-muted-foreground font-normal">Blue-Difference</span></span>
+              </label>
+            </div>
+            <div class="relative flex items-center">
+              <span class="pointer-events-none absolute left-1/2 -translate-x-1/2 w-0.5 h-2.5 rounded-full bg-foreground/25 z-0"></span>
+              <input
+                id="slider-cb"
+                type="range"
+                min="0"
+                max="200"
+                value="100"
+                step="1"
+                class="shadcn-slider z-10"
+              />
+            </div>
+            <div class="flex justify-between text-[10px] font-mono text-muted-foreground">
+              <span>0%</span>
+              <button type="button" data-reset="cb" class="hover:text-foreground transition-colors">100%</button>
+              <span>200%</span>
+            </div>
+          </div>
+
+          <!-- Cr (Chroma Red) Slider Control -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="slider-cr" class="text-xs font-medium leading-none flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                <span>Cr <span class="text-muted-foreground font-normal">Red-Difference</span></span>
+              </label>
+            </div>
+            <div class="relative flex items-center">
+              <span class="pointer-events-none absolute left-1/2 -translate-x-1/2 w-0.5 h-2.5 rounded-full bg-foreground/25 z-0"></span>
+              <input
+                id="slider-cr"
+                type="range"
+                min="0"
+                max="200"
+                value="100"
+                step="1"
+                class="shadcn-slider z-10"
+              />
+            </div>
+            <div class="flex justify-between text-[10px] font-mono text-muted-foreground">
+              <span>0%</span>
+              <button type="button" data-reset="cr" class="hover:text-foreground transition-colors">100%</button>
+              <span>200%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matrix Footer -->
+        <div class="pt-3 border-t border-border">
+          <!-- Compact Rec.601 Formula Readout -->
+          <div class="rounded-md bg-muted/60 p-2.5 font-mono text-[10px] text-muted-foreground space-y-1 leading-relaxed border border-border/60">
+            <div class="flex justify-between text-foreground font-medium">
+              <span>ITU-R BT.601 Transform</span>
+              <span id="active-mode-label" class="text-muted-foreground">Composite</span>
+            </div>
+            <div>Y' = <span id="f-y" class="text-foreground">1.00</span> · Y</div>
+            <div>Cb' = 128 + <span id="f-cb" class="text-foreground">1.00</span> · (Cb - 128)</div>
+            <div>Cr' = 128 + <span id="f-cr" class="text-foreground">1.00</span> · (Cr - 128)</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Pre-defined Unsplash images requested by the user:
+     * 1. Xinghai Bridge in Dalian at dusk (LgCj9qcrfhI)
+     * 2. Steam train on Glenfinnan Viaduct (XVoyX7l9ocY)
+     * 3. Bird's eye photography of snow mountains (BKAaLmT0tIs)
+     */
+    const PRESET_IMAGES = [
+      {
+        id: 'LgCj9qcrfhI',
+        name: 'Xinghai Bridge',
+        creditUrl: 'https://unsplash.com/photos/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI',
+        urls: [
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/LgCj9qcrfhI/download?force=true&w=1200') + '&w=1200&output=jpg',
+          'https://images.weserv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/LgCj9qcrfhI/download?force=true&w=1200') + '&w=1200&output=jpg'
+        ]
+      },
+      {
+        id: 'XVoyX7l9ocY',
+        name: 'Glenfinnan Viaduct',
+        creditUrl: 'https://unsplash.com/photos/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY',
+        urls: [
+          'https://images.unsplash.com/photo-1505832018823-50331d70d237?auto=format&fit=crop&w=1200&q=85',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/XVoyX7l9ocY/download?force=true&w=1200') + '&w=1200&output=jpg'
+        ]
+      },
+      {
+        id: 'BKAaLmT0tIs',
+        name: 'Snow Mountains',
+        creditUrl: 'https://unsplash.com/photos/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs',
+        urls: [
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/BKAaLmT0tIs/download?force=true&w=1200') + '&w=1200&output=jpg',
+          'https://images.weserv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/BKAaLmT0tIs/download?force=true&w=1200') + '&w=1200&output=jpg'
+        ]
+      }
+    ];
+
+    // Application State
+    const state = {
+      currentIndex: 0,
+      yLevel: 100,   // 0 to 200 (%)
+      cbLevel: 100,  // 0 to 200 (%)
+      crLevel: 100,  // 0 to 200 (%)
+      comparing: false,
+      soloPlane: null, // null | 'y' | 'cb' | 'cr'
+      width: 640,
+      height: 400,
+      thumbWidth: 192,
+      thumbHeight: 120,
+      // Cached original YCbCr buffers for ultra-fast 60fps scrubbing
+      origY: null,
+      origCb: null,
+      origCr: null,
+      thumbOrigY: null,
+      thumbOrigCb: null,
+      thumbOrigCr: null,
+    };
+
+    // DOM Elements
+    const canvasViewport = document.getElementById('canvas-viewport');
+    const mainCanvas = document.getElementById('main-canvas');
+    const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
+    const yCanvas = document.getElementById('y-canvas');
+    const yCtx = yCanvas.getContext('2d');
+    const cbCanvas = document.getElementById('cb-canvas');
+    const cbCtx = cbCanvas.getContext('2d');
+    const crCanvas = document.getElementById('cr-canvas');
+    const crCtx = crCanvas.getContext('2d');
+
+    const sliderY = document.getElementById('slider-y');
+    const sliderCb = document.getElementById('slider-cb');
+    const sliderCr = document.getElementById('slider-cr');
+
+    const formulaY = document.getElementById('f-y');
+    const formulaCb = document.getElementById('f-cb');
+    const formulaCr = document.getElementById('f-cr');
+    const activeModeLabel = document.getElementById('active-mode-label');
+
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const compareBadge = document.getElementById('compare-badge');
+    const resetBtn = document.getElementById('reset-btn');
+    const photoCredit = document.getElementById('photo-credit');
+
+    const pixelHud = document.getElementById('pixel-hud');
+    const swatchBox = document.getElementById('swatch-box');
+    const hudYcbcr = document.getElementById('hud-ycbcr');
+    const hudRgb = document.getElementById('hud-rgb');
+
+    // Update slider track fill gradient to match shadcn/ui primary progress bar
+    function updateSliderFill(slider) {
+      const pct = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
+      slider.style.background = `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${pct}%, hsl(var(--secondary)) ${pct}%, hsl(var(--secondary)) 100%)`;
+    }
+
+    /**
+     * High-detail procedural scene fallback if network/CORS blocks direct image pixel extraction
+     */
+    function renderProceduralFallback(ctx, width, height, index) {
+      ctx.save();
+      if (index === 0) {
+        // Xinghai Bridge in Dalian at dusk (Vibrant orange/magenta dusk sky, dark blue sea, suspension bridge)
+        const sky = ctx.createLinearGradient(0, 0, 0, height * 0.62);
+        sky.addColorStop(0, '#1e1b4b');
+        sky.addColorStop(0.35, '#6d28d9');
+        sky.addColorStop(0.7, '#db2777');
+        sky.addColorStop(1, '#f97316');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, width, height * 0.62);
+
+        const sea = ctx.createLinearGradient(0, height * 0.62, 0, height);
+        sea.addColorStop(0, '#431407');
+        sea.addColorStop(0.3, '#1e1b4b');
+        sea.addColorStop(1, '#090d16');
+        ctx.fillStyle = sea;
+        ctx.fillRect(0, height * 0.62, width, height * 0.38);
+
+        // Bridge pylons & suspension cables
+        ctx.strokeStyle = '#fb923c';
+        ctx.lineWidth = 2;
+        const deckY = height * 0.58;
+        ctx.beginPath();
+        ctx.moveTo(0, deckY);
+        ctx.lineTo(width, deckY);
+        ctx.stroke();
+
+        // Towers
+        const t1 = width * 0.28, t2 = width * 0.72;
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(t1 - 6, height * 0.28, 12, height * 0.36);
+        ctx.fillRect(t2 - 6, height * 0.28, 12, height * 0.36);
+
+        // Catenary cable curve
+        ctx.strokeStyle = '#fdba74';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, deckY - 10);
+        ctx.quadraticCurveTo(t1 * 0.5, deckY, t1, height * 0.3);
+        ctx.quadraticCurveTo((t1 + t2) / 2, deckY + 25, t2, height * 0.3);
+        ctx.quadraticCurveTo(t2 + (width - t2) * 0.5, deckY, width, deckY - 10);
+        ctx.stroke();
+      } else if (index === 1) {
+        // Glenfinnan Viaduct (Lush Scottish highland greens, stone viaduct curve, white steam plume)
+        const sky = ctx.createLinearGradient(0, 0, 0, height * 0.4);
+        sky.addColorStop(0, '#94a3b8');
+        sky.addColorStop(1, '#cbd5e1');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, width, height);
+
+        // Highland hills
+        ctx.fillStyle = '#3f6212';
+        ctx.beginPath();
+        ctx.moveTo(0, height * 0.35);
+        ctx.quadraticCurveTo(width * 0.3, height * 0.15, width * 0.65, height * 0.38);
+        ctx.lineTo(width, height * 0.25);
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.fill();
+
+        ctx.fillStyle = '#4d7c0f';
+        ctx.beginPath();
+        ctx.moveTo(0, height * 0.55);
+        ctx.quadraticCurveTo(width * 0.5, height * 0.4, width, height * 0.6);
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.fill();
+
+        // Viaduct arches
+        ctx.fillStyle = '#78716c';
+        const archCount = 10;
+        const startX = width * 0.1;
+        const spanW = width * 0.8;
+        const archW = spanW / archCount;
+        for (let i = 0; i < archCount; i++) {
+          const x = startX + i * archW;
+          ctx.fillRect(x, height * 0.48, archW * 0.35, height * 0.22);
+        }
+        ctx.fillRect(startX, height * 0.46, spanW, height * 0.04);
+
+        // Red/black steam train & white steam
+        ctx.fillStyle = '#991b1b';
+        ctx.fillRect(width * 0.25, height * 0.43, width * 0.35, height * 0.03);
+        ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+        for (let s = 0; s < 6; s++) {
+          ctx.beginPath();
+          ctx.arc(width * 0.25 - s * 18, height * 0.41 - s * 6, 14 + s * 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // Bird's eye photography of snow mountains (Pink/violet alpenglow over crisp blue/white snow ridges)
+        const bg = ctx.createLinearGradient(0, 0, width, height);
+        bg.addColorStop(0, '#f472b6');
+        bg.addColorStop(0.45, '#c084fc');
+        bg.addColorStop(1, '#38bdf8');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, width, height);
+
+        // Snow ridge facets
+        const ridges = [
+          [[0, height * 0.3], [width * 0.35, height * 0.12], [width * 0.7, height * 0.45], [width, height * 0.2], [width, height], [0, height]],
+          [[0, height * 0.65], [width * 0.25, height * 0.42], [width * 0.58, height * 0.72], [width * 0.88, height * 0.48], [width, height * 0.65], [width, height], [0, height]]
+        ];
+        ridges.forEach((pts, idx) => {
+          ctx.fillStyle = idx === 0 ? 'rgba(241, 245, 249, 0.85)' : 'rgba(226, 232, 240, 0.95)';
+          ctx.beginPath();
+          pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+          ctx.closePath();
+          ctx.fill();
+        });
+      }
+      ctx.restore();
+    }
+
+    /**
+     * Precompute ITU-R BT.601 full-range YCbCr buffers from an HTMLImageElement or fallback canvas
+     */
+    function extractYCbCrBuffers(sourceDrawFn) {
+      // 1. Main resolution buffer
+      const offscreen = document.createElement('canvas');
+      offscreen.width = state.width;
+      offscreen.height = state.height;
+      const oCtx = offscreen.getContext('2d');
+      sourceDrawFn(oCtx, state.width, state.height);
+
+      const imgData = oCtx.getImageData(0, 0, state.width, state.height).data;
+      const numPixels = state.width * state.height;
+      state.origY = new Float32Array(numPixels);
+      state.origCb = new Float32Array(numPixels);
+      state.origCr = new Float32Array(numPixels);
+
+      for (let i = 0, p = 0; i < imgData.length; i += 4, p++) {
+        const r = imgData[i];
+        const g = imgData[i + 1];
+        const b = imgData[i + 2];
+
+        // ITU-R BT.601 conversion
+        state.origY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
+        state.origCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        state.origCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+      }
+
+      // 2. Thumbnail resolution buffer for the 3 channel cards
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = state.thumbWidth;
+      thumbCanvas.height = state.thumbHeight;
+      const tCtx = thumbCanvas.getContext('2d');
+      sourceDrawFn(tCtx, state.thumbWidth, state.thumbHeight);
+
+      const tData = tCtx.getImageData(0, 0, state.thumbWidth, state.thumbHeight).data;
+      const numThumbPixels = state.thumbWidth * state.thumbHeight;
+      state.thumbOrigY = new Float32Array(numThumbPixels);
+      state.thumbOrigCb = new Float32Array(numThumbPixels);
+      state.thumbOrigCr = new Float32Array(numThumbPixels);
+
+      for (let i = 0, p = 0; i < tData.length; i += 4, p++) {
+        const r = tData[i];
+        const g = tData[i + 1];
+        const b = tData[i + 2];
+
+        state.thumbOrigY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
+        state.thumbOrigCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        state.thumbOrigCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+      }
+    }
+
+    /**
+     * Load preset image by index with automatic fallback cascade
+     */
+    function loadPresetImage(index) {
+      state.currentIndex = index;
+      loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+
+      const preset = PRESET_IMAGES[index];
+      photoCredit.href = preset.creditUrl;
+
+      // Update active tab styling
+      document.querySelectorAll('.preset-btn').forEach((btn, idx) => {
+        if (idx === index) {
+          btn.classList.add('bg-background', 'text-foreground', 'shadow-sm');
+          btn.classList.remove('hover:text-foreground');
+        } else {
+          btn.classList.remove('bg-background', 'text-foreground', 'shadow-sm');
+          btn.classList.add('hover:text-foreground');
+        }
+      });
+
+      let urlIdx = 0;
+
+      function tryNextUrl() {
+        if (urlIdx >= preset.urls.length) {
+          // Use procedural high-res scene if offline or blocked
+          extractYCbCrBuffers((ctx, w, h) => renderProceduralFallback(ctx, w, h, index));
+          finishLoad();
+          return;
+        }
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        img.onload = () => {
+          try {
+            // Compute aspect-fit dimensions (around 720px wide for crisp 60fps manipulation)
+            const targetW = 720;
+            const aspect = img.naturalHeight / img.naturalWidth || 0.625;
+            state.width = targetW;
+            state.height = Math.round(targetW * aspect);
+
+            mainCanvas.width = state.width;
+            mainCanvas.height = state.height;
+            yCanvas.width = state.thumbWidth;
+            yCanvas.height = state.thumbHeight;
+            cbCanvas.width = state.thumbWidth;
+            cbCanvas.height = state.thumbHeight;
+            crCanvas.width = state.thumbWidth;
+            crCanvas.height = state.thumbHeight;
+
+            extractYCbCrBuffers((ctx, w, h) => {
+              ctx.drawImage(img, 0, 0, w, h);
+            });
+            finishLoad();
+          } catch (err) {
+            urlIdx++;
+            tryNextUrl();
+          }
+        };
+
+        img.onerror = () => {
+          urlIdx++;
+          tryNextUrl();
+        };
+
+        img.src = preset.urls[urlIdx];
+      }
+
+      tryNextUrl();
+    }
+
+    function finishLoad() {
+      loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+      renderAllCanvases();
+    }
+
+    /**
+     * Render the main composite canvas and the 3 individual Y, Cb, Cr channel planes
+     */
+    function renderAllCanvases() {
+      if (!state.origY) return;
+
+      const scaleY  = state.comparing ? 1.0 : state.yLevel / 100;
+      const scaleCb = state.comparing ? 1.0 : state.cbLevel / 100;
+      const scaleCr = state.comparing ? 1.0 : state.crLevel / 100;
+
+      // Update formula numbers
+      formulaY.textContent = scaleY.toFixed(2);
+      formulaCb.textContent = scaleCb.toFixed(2);
+      formulaCr.textContent = scaleCr.toFixed(2);
+
+      const isDefault = state.yLevel === 100 && state.cbLevel === 100 && state.crLevel === 100 && !state.soloPlane;
+      resetBtn.disabled = isDefault;
+
+      // 1. Render Main Canvas
+      const mainImgData = mainCtx.createImageData(state.width, state.height);
+      const dst = mainImgData.data;
+      const n = state.width * state.height;
+
+      const origY = state.origY;
+      const origCb = state.origCb;
+      const origCr = state.origCr;
+
+      for (let p = 0, i = 0; p < n; p++, i += 4) {
+        const yMod  = Math.min(255, Math.max(0, origY[p] * scaleY));
+        const cbOffset = (origCb[p] - 128) * scaleCb;
+        const crOffset = (origCr[p] - 128) * scaleCr;
+
+        let r, g, b;
+
+        if (state.soloPlane === 'y' && !state.comparing) {
+          r = g = b = yMod;
+        } else if (state.soloPlane === 'cb' && !state.comparing) {
+          // Visualize Cb plane tinted on neutral 128 luma
+          r = 128;
+          g = 128 - 0.344136 * cbOffset;
+          b = 128 + 1.772 * cbOffset;
+        } else if (state.soloPlane === 'cr' && !state.comparing) {
+          // Visualize Cr plane tinted on neutral 128 luma
+          r = 128 + 1.402 * crOffset;
+          g = 128 - 0.714136 * crOffset;
+          b = 128;
+        } else {
+          // Standard full YCbCr -> RGB reconstruction
+          r = yMod + 1.402 * crOffset;
+          g = yMod - 0.344136 * cbOffset - 0.714136 * crOffset;
+          b = yMod + 1.772 * cbOffset;
+        }
+
+        dst[i]     = r < 0 ? 0 : r > 255 ? 255 : r;
+        dst[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+        dst[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+        dst[i + 3] = 255;
+      }
+      mainCtx.putImageData(mainImgData, 0, 0);
+
+      // 2. Render the 3 Decomposed Thumbnail Planes (Y, Cb, Cr)
+      const tn = state.thumbWidth * state.thumbHeight;
+      const yImg = yCtx.createImageData(state.thumbWidth, state.thumbHeight);
+      const cbImg = cbCtx.createImageData(state.thumbWidth, state.thumbHeight);
+      const crImg = crCtx.createImageData(state.thumbWidth, state.thumbHeight);
+
+      const yDst = yImg.data;
+      const cbDst = cbImg.data;
+      const crDst = crImg.data;
+
+      const tY = state.thumbOrigY;
+      const tCb = state.thumbOrigCb;
+      const tCr = state.thumbOrigCr;
+
+      for (let p = 0, i = 0; p < tn; p++, i += 4) {
+        // Y Plane (Grayscale luminance)
+        const yVal = Math.min(255, Math.max(0, tY[p] * scaleY));
+        yDst[i] = yDst[i + 1] = yDst[i + 2] = yVal;
+        yDst[i + 3] = 255;
+
+        // Cb Plane (Blue-yellow chrominance around neutral 128 luma)
+        const cbOff = (tCb[p] - 128) * scaleCb;
+        cbDst[i]     = 128;
+        cbDst[i + 1] = Math.min(255, Math.max(0, 128 - 0.344136 * cbOff));
+        cbDst[i + 2] = Math.min(255, Math.max(0, 128 + 1.772 * cbOff));
+        cbDst[i + 3] = 255;
+
+        // Cr Plane (Red-cyan chrominance around neutral 128 luma)
+        const crOff = (tCr[p] - 128) * scaleCr;
+        crDst[i]     = Math.min(255, Math.max(0, 128 + 1.402 * crOff));
+        crDst[i + 1] = Math.min(255, Math.max(0, 128 - 0.714136 * crOff));
+        crDst[i + 2] = 128;
+        crDst[i + 3] = 255;
+      }
+
+      yCtx.putImageData(yImg, 0, 0);
+      cbCtx.putImageData(cbImg, 0, 0);
+      crCtx.putImageData(crImg, 0, 0);
+    }
+
+    // Synchronize slider values
+    function setChannelLevels(y, cb, cr) {
+      state.yLevel = Math.min(200, Math.max(0, Math.round(y)));
+      state.cbLevel = Math.min(200, Math.max(0, Math.round(cb)));
+      state.crLevel = Math.min(200, Math.max(0, Math.round(cr)));
+
+      sliderY.value = state.yLevel;
+      sliderCb.value = state.cbLevel;
+      sliderCr.value = state.crLevel;
+
+      updateSliderFill(sliderY);
+      updateSliderFill(sliderCb);
+      updateSliderFill(sliderCr);
+      renderAllCanvases();
+    }
+
+    // Event Listeners for Sliders (with magnetic snapping at 100%)
+    const SNAP_POINTS = [100];
+    const SNAP_THRESHOLD = 4;
+
+    [
+      { slider: sliderY, key: 'yLevel' },
+      { slider: sliderCb, key: 'cbLevel' },
+      { slider: sliderCr, key: 'crLevel' }
+    ].forEach(({ slider, key }) => {
+      slider.addEventListener('input', (e) => {
+        let val = Number(e.target.value);
+
+        // Snap to 100% when dragging within the threshold
+        for (const pt of SNAP_POINTS) {
+          if (Math.abs(val - pt) <= SNAP_THRESHOLD) {
+            val = pt;
+            slider.value = pt;
+            break;
+          }
+        }
+
+        state[key] = val;
+        updateSliderFill(slider);
+        renderAllCanvases();
+      });
+    });
+
+    // Click 100% label under any slider to reset that single channel
+    document.querySelectorAll('[data-reset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const ch = btn.getAttribute('data-reset');
+        if (ch === 'y') setChannelLevels(100, state.cbLevel, state.crLevel);
+        if (ch === 'cb') setChannelLevels(state.yLevel, 100, state.crLevel);
+        if (ch === 'cr') setChannelLevels(state.yLevel, state.cbLevel, 100);
+      });
+    });
+
+    // Preset Image Tabs
+    document.querySelectorAll('.preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-index'), 10);
+        if (idx !== state.currentIndex) {
+          loadPresetImage(idx);
+        }
+      });
+    });
+
+    // Solo Channel Plane Inspection Cards
+    document.querySelectorAll('.plane-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const plane = card.getAttribute('data-plane');
+        state.soloPlane = state.soloPlane === plane ? null : plane;
+
+        document.querySelectorAll('.plane-card').forEach((c) => {
+          if (c.getAttribute('data-plane') === state.soloPlane) {
+            c.classList.add('ring-2', 'ring-primary');
+          } else {
+            c.classList.remove('ring-2', 'ring-primary');
+          }
+        });
+
+        activeModeLabel.textContent = state.soloPlane
+          ? `Solo ${state.soloPlane.toUpperCase()} Plane`
+          : 'Composite';
+
+        renderAllCanvases();
+      });
+    });
+
+    // Click and Hold on Image Viewport to inspect original 100% image
+    function setCompare(active) {
+      state.comparing = active;
+      compareBadge.classList.toggle('hidden', !active);
+      renderAllCanvases();
+    }
+
+    canvasViewport.addEventListener('mousedown', (e) => {
+      // Ignore clicks on the Unsplash attribution link
+      if (e.target.closest('#photo-credit')) return;
+      setCompare(true);
+    });
+    window.addEventListener('mouseup', () => {
+      if (state.comparing) setCompare(false);
+    });
+    canvasViewport.addEventListener('touchstart', (e) => {
+      if (e.target.closest('#photo-credit')) return;
+      e.preventDefault();
+      setCompare(true);
+    }, { passive: false });
+    window.addEventListener('touchend', () => {
+      if (state.comparing) setCompare(false);
+    });
+    window.addEventListener('touchcancel', () => {
+      if (state.comparing) setCompare(false);
+    });
+
+    // Reset All Button
+    resetBtn.addEventListener('click', () => {
+      state.soloPlane = null;
+      document.querySelectorAll('.plane-card').forEach(c => c.classList.remove('ring-2', 'ring-primary'));
+      activeModeLabel.textContent = 'Composite';
+      setChannelLevels(100, 100, 100);
+    });
+
+    // Live Pixel Inspector on Canvas Viewport Hover
+    canvasViewport.addEventListener('mousemove', (e) => {
+      if (!state.origY) return;
+      const rect = mainCanvas.getBoundingClientRect();
+      const x = Math.min(state.width - 1, Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * state.width)));
+      const y = Math.min(state.height - 1, Math.max(0, Math.floor(((e.clientY - rect.top) / rect.height) * state.height)));
+      const p = y * state.width + x;
+
+      const scaleY  = state.yLevel / 100;
+      const scaleCb = state.cbLevel / 100;
+      const scaleCr = state.crLevel / 100;
+
+      const curY  = Math.round(Math.min(255, Math.max(0, state.origY[p] * scaleY)));
+      const curCb = Math.round(Math.min(255, Math.max(0, 128 + (state.origCb[p] - 128) * scaleCb)));
+      const curCr = Math.round(Math.min(255, Math.max(0, 128 + (state.origCr[p] - 128) * scaleCr)));
+
+      const pixel = mainCtx.getImageData(x, y, 1, 1).data;
+      swatchBox.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+      hudYcbcr.textContent = `Y:${curY} Cb:${curCb} Cr:${curCr}`;
+      hudRgb.textContent = `RGB(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+    });
+
+    // Dark / Light Theme Switcher
+    const themeBtn = document.getElementById('theme-btn');
+    const sunIcon = document.getElementById('sun-icon');
+    const moonIcon = document.getElementById('moon-icon');
+
+    themeBtn.addEventListener('click', () => {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      sunIcon.classList.toggle('hidden', !isDark);
+      moonIcon.classList.toggle('hidden', isDark);
+      updateSliderFill(sliderY);
+      updateSliderFill(sliderCb);
+      updateSliderFill(sliderCr);
+    });
+
+    // Initialize Demo on Window Load
+    window.onload = function () {
+      updateSliderFill(sliderY);
+      updateSliderFill(sliderCb);
+      updateSliderFill(sliderCr);
+      loadPresetImage(0);
+    };
+  </script>
+</body>
+</html>

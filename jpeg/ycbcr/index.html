@@ -241,7 +241,7 @@
           title="Click and hold to compare with original"
           class="relative w-full aspect-[16/10] rounded-lg border border-border overflow-hidden canvas-backdrop flex items-center justify-center bg-muted/30 group cursor-pointer select-none"
         >
-          <canvas id="main-canvas" class="w-full h-full object-contain pointer-events-none"></canvas>
+          <canvas id="main-canvas" class="w-full h-full object-cover pointer-events-none"></canvas>
 
           <!-- Loading Skeleton Overlay -->
           <div id="loading-overlay" class="absolute inset-0 bg-background/80 backdrop-blur-xs flex items-center justify-center transition-opacity duration-200">
@@ -429,6 +429,7 @@
      * 1. Xinghai Bridge in Dalian at dusk (LgCj9qcrfhI)
      * 2. Steam train on Glenfinnan Viaduct (XVoyX7l9ocY)
      * 3. Bird's eye photography of snow mountains (BKAaLmT0tIs)
+     * Try direct assets first, then the image proxy if the host blocks canvas access via CORS.
      */
     const PRESET_IMAGES = [
       {
@@ -436,8 +437,8 @@
         name: 'Xinghai Bridge',
         creditUrl: 'https://unsplash.com/photos/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI',
         urls: [
-          'https://wsrv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/LgCj9qcrfhI/download?force=true&w=1200') + '&w=1200&output=jpg',
-          'https://images.weserv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/LgCj9qcrfhI/download?force=true&w=1200') + '&w=1200&output=jpg'
+          'https://assets.yunhocho.com/images/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI.jpg',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://assets.yunhocho.com/images/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI.jpg') + '&w=1200&output=jpg'
         ]
       },
       {
@@ -445,8 +446,8 @@
         name: 'Glenfinnan Viaduct',
         creditUrl: 'https://unsplash.com/photos/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY',
         urls: [
-          'https://images.unsplash.com/photo-1505832018823-50331d70d237?auto=format&fit=crop&w=1200&q=85',
-          'https://wsrv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/XVoyX7l9ocY/download?force=true&w=1200') + '&w=1200&output=jpg'
+          'https://assets.yunhocho.com/images/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY.jpg',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://assets.yunhocho.com/images/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY.jpg') + '&w=1200&output=jpg'
         ]
       },
       {
@@ -454,8 +455,8 @@
         name: 'Snow Mountains',
         creditUrl: 'https://unsplash.com/photos/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs',
         urls: [
-          'https://wsrv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/BKAaLmT0tIs/download?force=true&w=1200') + '&w=1200&output=jpg',
-          'https://images.weserv.nl/?url=' + encodeURIComponent('https://unsplash.com/photos/BKAaLmT0tIs/download?force=true&w=1200') + '&w=1200&output=jpg'
+          'https://assets.yunhocho.com/images/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs.jpg',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://assets.yunhocho.com/images/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs.jpg') + '&w=1200&output=jpg'
         ]
       }
     ];
@@ -723,11 +724,9 @@
 
         img.onload = () => {
           try {
-            // Compute aspect-fit dimensions (around 720px wide for crisp 60fps manipulation)
-            const targetW = 720;
-            const aspect = img.naturalHeight / img.naturalWidth || 0.625;
-            state.width = targetW;
-            state.height = Math.round(targetW * aspect);
+            // Match the 16:10 viewport and channel previews.
+            state.width = 720;
+            state.height = 450;
 
             mainCanvas.width = state.width;
             mainCanvas.height = state.height;
@@ -739,7 +738,11 @@
             crCanvas.height = state.thumbHeight;
 
             extractYCbCrBuffers((ctx, w, h) => {
-              ctx.drawImage(img, 0, 0, w, h);
+              // Fill both dimensions without distortion, cropping excess at the center.
+              const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+              const drawWidth = img.naturalWidth * scale;
+              const drawHeight = img.naturalHeight * scale;
+              ctx.drawImage(img, (w - drawWidth) / 2, (h - drawHeight) / 2, drawWidth, drawHeight);
             });
             finishLoad();
           } catch (err) {

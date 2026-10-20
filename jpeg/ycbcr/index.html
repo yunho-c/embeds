@@ -168,6 +168,62 @@
       background: rgba(0, 0, 0, 0.25);
       filter: blur(7px);
     }
+
+    .explorer-layout {
+      --channel-width: 192px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .layout-divider {
+      display: none;
+    }
+
+    body.resizing-panels,
+    body.resizing-panels * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
+
+    @media (min-width: 768px) {
+      .explorer-layout {
+        grid-template-columns: minmax(0, 1fr) 1px var(--channel-width);
+        /* Fit all three channels at the default sidebar width. */
+        min-height: 36rem;
+      }
+
+      .layout-divider {
+        display: block;
+        position: relative;
+        align-self: stretch;
+        z-index: 20;
+        background: hsl(var(--border));
+        cursor: col-resize;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 150ms ease;
+      }
+
+      /* A generous hit area around the hairline divider. */
+      .layout-divider::before {
+        content: "";
+        position: absolute;
+        inset: 0 -7px;
+      }
+
+      .layout-divider:hover,
+      .resizing-panels .layout-divider {
+        background: hsl(var(--foreground));
+      }
+
+      /* Let previews fill the sidebar and scroll without stretching the layout. */
+      #channel-controls {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        contain: size;
+      }
+    }
   </style>
 </head>
 
@@ -180,7 +236,7 @@
     <div class="flex flex-wrap items-center justify-between gap-2 p-3 border-b border-border bg-muted/20">
 
       <!-- Image Switcher (shadcn Tabs-style pill group) -->
-      <div class="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground" role="tablist">
+      <div class="inline-flex h-9 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground" role="tablist">
         <button
           type="button"
           data-index="0"
@@ -230,18 +286,18 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12">
+    <div id="explorer-layout" class="explorer-layout">
 
-      <!-- Left/Main Area: Composite Canvas + Live Channel Mini-Planes -->
-      <div class="lg:col-span-8 p-3 sm:p-4 flex flex-col gap-3 border-b lg:border-b-0 lg:border-r border-border bg-muted/10">
+      <!-- Main composite image -->
+      <div id="composite-panel" class="min-w-0 p-3 sm:p-4 border-b md:border-b-0 border-border bg-muted/10">
 
         <!-- Main Composite Canvas Wrapper (Click/Hold to compare with Original) -->
         <div
           id="canvas-viewport"
           title="Click and hold to compare with original"
-          class="relative w-full aspect-[16/10] rounded-lg border border-border overflow-hidden canvas-backdrop flex items-center justify-center bg-muted/30 group cursor-pointer select-none"
+          class="relative w-full rounded-lg border border-border overflow-hidden canvas-backdrop bg-muted/30 group cursor-pointer select-none"
         >
-          <canvas id="main-canvas" class="w-full h-full object-cover pointer-events-none"></canvas>
+          <canvas id="main-canvas" width="640" height="400" class="block w-full h-auto pointer-events-none"></canvas>
 
           <!-- Loading Skeleton Overlay -->
           <div id="loading-overlay" class="absolute inset-0 bg-background/80 backdrop-blur-xs flex items-center justify-center transition-opacity duration-200">
@@ -279,52 +335,24 @@
           </a>
         </div>
 
-        <!-- 3 Live Decomposed Channel Planes (Click to solo/inspect) -->
-        <div class="grid grid-cols-3 gap-2.5">
-          <!-- Y Plane -->
-          <button
-            type="button"
-            data-plane="y"
-            title="Click to toggle solo Y (Luma) preview"
-            class="plane-card group relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div class="aspect-[16/10] w-full bg-muted overflow-hidden">
-              <canvas id="y-canvas" class="w-full h-full object-cover"></canvas>
-            </div>
-          </button>
-
-          <!-- Cb Plane -->
-          <button
-            type="button"
-            data-plane="cb"
-            title="Click to toggle solo Cb (Blue-Difference) preview"
-            class="plane-card group relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div class="aspect-[16/10] w-full bg-muted overflow-hidden">
-              <canvas id="cb-canvas" class="w-full h-full object-cover"></canvas>
-            </div>
-          </button>
-
-          <!-- Cr Plane -->
-          <button
-            type="button"
-            data-plane="cr"
-            title="Click to toggle solo Cr (Red-Difference) preview"
-            class="plane-card group relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div class="aspect-[16/10] w-full bg-muted overflow-hidden">
-              <canvas id="cr-canvas" class="w-full h-full object-cover"></canvas>
-            </div>
-          </button>
-        </div>
-
       </div>
 
-      <div class="lg:col-span-4 p-4 flex flex-col justify-between gap-6 bg-card">
+      <div
+        id="layout-divider"
+        class="layout-divider"
+        role="separator"
+        aria-label="Composite image width"
+        aria-orientation="vertical"
+        aria-controls="composite-panel"
+        title="Drag to resize. Double-click to reset."
+      ></div>
 
-        <div class="space-y-5">
-          <!-- Y (Luminance) Slider Control -->
-          <div class="space-y-2">
+      <!-- Each channel preview sits directly beneath its slider -->
+      <div id="channel-controls" class="min-w-0 p-3 sm:p-4 bg-card">
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 gap-5">
+          <!-- Y (Luminance) control and preview -->
+          <div class="channel-control min-w-0 space-y-2">
             <div class="flex items-center justify-between">
               <label for="slider-y" class="text-xs font-medium leading-none flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-zinc-500 inline-block"></span>
@@ -348,10 +376,21 @@
               <button type="button" data-reset="y" class="hover:text-foreground transition-colors">100%</button>
               <span>200%</span>
             </div>
+            <button
+              type="button"
+              data-plane="y"
+              aria-pressed="false"
+              title="Click to toggle solo Y (Luma) preview"
+              class="plane-card block w-full relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div class="w-full bg-muted overflow-hidden">
+                <canvas id="y-canvas" width="384" height="240" class="block w-full h-auto"></canvas>
+              </div>
+            </button>
           </div>
 
-          <!-- Cb (Chroma Blue) Slider Control -->
-          <div class="space-y-2">
+          <!-- Cb (Chroma Blue) control and preview -->
+          <div class="channel-control min-w-0 space-y-2">
             <div class="flex items-center justify-between">
               <label for="slider-cb" class="text-xs font-medium leading-none flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
@@ -375,10 +414,21 @@
               <button type="button" data-reset="cb" class="hover:text-foreground transition-colors">100%</button>
               <span>200%</span>
             </div>
+            <button
+              type="button"
+              data-plane="cb"
+              aria-pressed="false"
+              title="Click to toggle solo Cb (Blue-Difference) preview"
+              class="plane-card block w-full relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div class="w-full bg-muted overflow-hidden">
+                <canvas id="cb-canvas" width="384" height="240" class="block w-full h-auto"></canvas>
+              </div>
+            </button>
           </div>
 
-          <!-- Cr (Chroma Red) Slider Control -->
-          <div class="space-y-2">
+          <!-- Cr (Chroma Red) control and preview -->
+          <div class="channel-control min-w-0 space-y-2">
             <div class="flex items-center justify-between">
               <label for="slider-cr" class="text-xs font-medium leading-none flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
@@ -402,20 +452,17 @@
               <button type="button" data-reset="cr" class="hover:text-foreground transition-colors">100%</button>
               <span>200%</span>
             </div>
-          </div>
-        </div>
-
-        <!-- Matrix Footer -->
-        <div class="pt-3 border-t border-border">
-          <!-- Compact Rec.601 Formula Readout -->
-          <div class="rounded-md bg-muted/60 p-2.5 font-mono text-[10px] text-muted-foreground space-y-1 leading-relaxed border border-border/60">
-            <div class="flex justify-between text-foreground font-medium">
-              <span>ITU-R BT.601 Transform</span>
-              <span id="active-mode-label" class="text-muted-foreground">Composite</span>
-            </div>
-            <div>Y' = <span id="f-y" class="text-foreground">1.00</span> · Y</div>
-            <div>Cb' = 128 + <span id="f-cb" class="text-foreground">1.00</span> · (Cb - 128)</div>
-            <div>Cr' = 128 + <span id="f-cr" class="text-foreground">1.00</span> · (Cr - 128)</div>
+            <button
+              type="button"
+              data-plane="cr"
+              aria-pressed="false"
+              title="Click to toggle solo Cr (Red-Difference) preview"
+              class="plane-card block w-full relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div class="w-full bg-muted overflow-hidden">
+                <canvas id="cr-canvas" width="384" height="240" class="block w-full h-auto"></canvas>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -471,8 +518,8 @@
       soloPlane: null, // null | 'y' | 'cb' | 'cr'
       width: 640,
       height: 400,
-      thumbWidth: 192,
-      thumbHeight: 120,
+      thumbWidth: 384,
+      thumbHeight: 240,
       // Cached original YCbCr buffers for ultra-fast 60fps scrubbing
       origY: null,
       origCb: null,
@@ -483,6 +530,9 @@
     };
 
     // DOM Elements
+    const explorerLayout = document.getElementById('explorer-layout');
+    const layoutDivider = document.getElementById('layout-divider');
+    const channelControls = document.getElementById('channel-controls');
     const canvasViewport = document.getElementById('canvas-viewport');
     const mainCanvas = document.getElementById('main-canvas');
     const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
@@ -497,11 +547,6 @@
     const sliderCb = document.getElementById('slider-cb');
     const sliderCr = document.getElementById('slider-cr');
 
-    const formulaY = document.getElementById('f-y');
-    const formulaCb = document.getElementById('f-cb');
-    const formulaCr = document.getElementById('f-cr');
-    const activeModeLabel = document.getElementById('active-mode-label');
-
     const loadingOverlay = document.getElementById('loading-overlay');
     const compareBadge = document.getElementById('compare-badge');
     const resetBtn = document.getElementById('reset-btn');
@@ -511,6 +556,99 @@
     const swatchBox = document.getElementById('swatch-box');
     const hudYcbcr = document.getElementById('hud-ycbcr');
     const hudRgb = document.getElementById('hud-rgb');
+
+    // Resize the display columns without touching the image buffers.
+    const desktopLayout = window.matchMedia('(min-width: 768px)');
+    const DEFAULT_CHANNEL_WIDTH = 192;
+    const MIN_CHANNEL_WIDTH = 176;
+    const MIN_COMPOSITE_WIDTH = 320;
+    let preferredChannelWidth = DEFAULT_CHANNEL_WIDTH;
+    let activeResize = null;
+
+    function splitBounds() {
+      const available = Math.max(1, explorerLayout.clientWidth - 1);
+      const max = Math.max(0, available - MIN_COMPOSITE_WIDTH);
+      return { min: Math.min(MIN_CHANNEL_WIDTH, max), max };
+    }
+
+    function updateSplit() {
+      if (!desktopLayout.matches) return;
+      const { min, max } = splitBounds();
+      const width = Math.min(max, Math.max(min, preferredChannelWidth));
+      explorerLayout.style.setProperty('--channel-width', `${width}px`);
+    }
+
+    function setChannelWidth(width) {
+      const { min, max } = splitBounds();
+      preferredChannelWidth = Math.min(max, Math.max(min, width));
+      updateSplit();
+    }
+
+    function stopResizing(cancel = false) {
+      if (!activeResize) return;
+      const resize = activeResize;
+      activeResize = null;
+      document.body.classList.remove('resizing-panels');
+      if (cancel) {
+        preferredChannelWidth = resize.preferredWidth;
+        updateSplit();
+      }
+      if (layoutDivider.hasPointerCapture(resize.pointerId)) {
+        layoutDivider.releasePointerCapture(resize.pointerId);
+      }
+    }
+
+    layoutDivider.addEventListener('pointerdown', (event) => {
+      if (!desktopLayout.matches || !event.isPrimary || event.button !== 0) return;
+      event.preventDefault();
+      activeResize = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startWidth: channelControls.getBoundingClientRect().width,
+        preferredWidth: preferredChannelWidth,
+      };
+      layoutDivider.setPointerCapture(event.pointerId);
+      document.body.classList.add('resizing-panels');
+    });
+
+    layoutDivider.addEventListener('pointermove', (event) => {
+      if (!activeResize || event.pointerId !== activeResize.pointerId) return;
+      setChannelWidth(activeResize.startWidth + activeResize.startX - event.clientX);
+    });
+
+    layoutDivider.addEventListener('pointerup', (event) => {
+      if (event.pointerId === activeResize?.pointerId) stopResizing();
+    });
+    layoutDivider.addEventListener('pointercancel', (event) => {
+      if (event.pointerId === activeResize?.pointerId) stopResizing(true);
+    });
+    layoutDivider.addEventListener('lostpointercapture', (event) => {
+      if (event.pointerId === activeResize?.pointerId) stopResizing();
+    });
+    window.addEventListener('blur', () => stopResizing());
+    layoutDivider.addEventListener('dblclick', () => setChannelWidth(DEFAULT_CHANNEL_WIDTH));
+
+    desktopLayout.addEventListener('change', () => {
+      stopResizing();
+      updateSplit();
+    });
+    const layoutObserver = new ResizeObserver(updateSplit);
+    layoutObserver.observe(explorerLayout);
+    updateSplit();
+
+    function setImageDimensions(width, height) {
+      state.width = width;
+      state.height = height;
+      const thumbnailScale = 384 / Math.max(width, height);
+      state.thumbWidth = Math.max(1, Math.round(width * thumbnailScale));
+      state.thumbHeight = Math.max(1, Math.round(height * thumbnailScale));
+      mainCanvas.width = width;
+      mainCanvas.height = height;
+      [yCanvas, cbCanvas, crCanvas].forEach((canvas) => {
+        canvas.width = state.thumbWidth;
+        canvas.height = state.thumbHeight;
+      });
+    }
 
     // Update slider track fill gradient to match shadcn/ui primary progress bar
     function updateSliderFill(slider) {
@@ -714,6 +852,7 @@
       function tryNextUrl() {
         if (urlIdx >= preset.urls.length) {
           // Use procedural high-res scene if offline or blocked
+          setImageDimensions(640, 400);
           extractYCbCrBuffers((ctx, w, h) => renderProceduralFallback(ctx, w, h, index));
           finishLoad();
           return;
@@ -724,25 +863,15 @@
 
         img.onload = () => {
           try {
-            // Match the 16:10 viewport and channel previews.
-            state.width = 720;
-            state.height = 450;
-
-            mainCanvas.width = state.width;
-            mainCanvas.height = state.height;
-            yCanvas.width = state.thumbWidth;
-            yCanvas.height = state.thumbHeight;
-            cbCanvas.width = state.thumbWidth;
-            cbCanvas.height = state.thumbHeight;
-            crCanvas.width = state.thumbWidth;
-            crCanvas.height = state.thumbHeight;
+            // Preserve the whole photograph and let each canvas determine its frame height.
+            const scale = 720 / Math.max(img.naturalWidth, img.naturalHeight);
+            setImageDimensions(
+              Math.max(1, Math.round(img.naturalWidth * scale)),
+              Math.max(1, Math.round(img.naturalHeight * scale))
+            );
 
             extractYCbCrBuffers((ctx, w, h) => {
-              // Fill both dimensions without distortion, cropping excess at the center.
-              const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-              const drawWidth = img.naturalWidth * scale;
-              const drawHeight = img.naturalHeight * scale;
-              ctx.drawImage(img, (w - drawWidth) / 2, (h - drawHeight) / 2, drawWidth, drawHeight);
+              ctx.drawImage(img, 0, 0, w, h);
             });
             finishLoad();
           } catch (err) {
@@ -776,11 +905,6 @@
       const scaleY  = state.comparing ? 1.0 : state.yLevel / 100;
       const scaleCb = state.comparing ? 1.0 : state.cbLevel / 100;
       const scaleCr = state.comparing ? 1.0 : state.crLevel / 100;
-
-      // Update formula numbers
-      formulaY.textContent = scaleY.toFixed(2);
-      formulaCb.textContent = scaleCb.toFixed(2);
-      formulaCr.textContent = scaleCr.toFixed(2);
 
       const isDefault = state.yLevel === 100 && state.cbLevel === 100 && state.crLevel === 100 && !state.soloPlane;
       resetBtn.disabled = isDefault;
@@ -937,16 +1061,11 @@
         state.soloPlane = state.soloPlane === plane ? null : plane;
 
         document.querySelectorAll('.plane-card').forEach((c) => {
-          if (c.getAttribute('data-plane') === state.soloPlane) {
-            c.classList.add('ring-2', 'ring-primary');
-          } else {
-            c.classList.remove('ring-2', 'ring-primary');
-          }
+          const selected = c.getAttribute('data-plane') === state.soloPlane;
+          c.classList.toggle('ring-2', selected);
+          c.classList.toggle('ring-primary', selected);
+          c.setAttribute('aria-pressed', String(selected));
         });
-
-        activeModeLabel.textContent = state.soloPlane
-          ? `Solo ${state.soloPlane.toUpperCase()} Plane`
-          : 'Composite';
 
         renderAllCanvases();
       });
@@ -982,8 +1101,10 @@
     // Reset All Button
     resetBtn.addEventListener('click', () => {
       state.soloPlane = null;
-      document.querySelectorAll('.plane-card').forEach(c => c.classList.remove('ring-2', 'ring-primary'));
-      activeModeLabel.textContent = 'Composite';
+      document.querySelectorAll('.plane-card').forEach(c => {
+        c.classList.remove('ring-2', 'ring-primary');
+        c.setAttribute('aria-pressed', 'false');
+      });
       setChannelLevels(100, 100, 100);
     });
 

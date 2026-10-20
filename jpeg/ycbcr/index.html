@@ -185,6 +185,99 @@
       user-select: none !important;
     }
 
+    .channel-control {
+      --guide-accent: 240 5% 46%;
+    }
+
+    [data-channel="cb"] {
+      --guide-accent: 217 91% 60%;
+    }
+
+    [data-channel="cr"] {
+      --guide-accent: 350 89% 60%;
+    }
+
+    .tutorial-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      grid-column: 1 / -1;
+      width: 100%;
+      max-width: 100%;
+      padding: 0.375rem 0.5rem 0.375rem 0.75rem;
+      border: 1px solid hsl(var(--border));
+      border-radius: 0.5rem;
+      background: hsl(var(--card));
+      scroll-margin-block: 0.75rem;
+    }
+
+    .tutorial-card[hidden] {
+      display: none;
+    }
+
+    #tutorial-home > .tutorial-card {
+      margin-top: 0.75rem;
+    }
+
+    #channel-controls > .tutorial-card {
+      margin-bottom: 1.25rem;
+    }
+
+    .tutorial-copy {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.5;
+      white-space: normal;
+      color: hsl(var(--foreground) / 0.85);
+    }
+
+    .tutorial-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 0.25rem;
+      color: hsl(var(--muted-foreground));
+      cursor: pointer;
+    }
+
+    .tutorial-action:hover {
+      color: hsl(var(--foreground));
+      background: hsl(var(--accent));
+    }
+
+    .tutorial-action:focus-visible {
+      outline: 2px solid hsl(var(--ring));
+      outline-offset: 1px;
+    }
+
+    .tutorial-action:disabled {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .channel-control {
+      border-radius: 0.375rem;
+      outline: 1px solid transparent;
+      outline-offset: 6px;
+      transition: outline-color 180ms ease;
+    }
+
+    .channel-control[data-tutorial-active="true"] {
+      outline-color: hsl(var(--guide-accent) / 0.65);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .channel-control {
+        transition: none;
+      }
+    }
+
     @media (min-width: 768px) {
       .explorer-layout {
         grid-template-columns: minmax(0, 1fr) 1px var(--channel-width);
@@ -263,8 +356,20 @@
         </button>
       </div>
 
-      <!-- Right Action Controls: Reset, Theme Toggle -->
+      <!-- Right Action Controls: Guide, Reset, Theme Toggle -->
       <div class="flex items-center gap-1.5">
+        <button
+          id="tutorial-toggle"
+          type="button"
+          title="Color guide"
+          aria-label="Toggle color guide"
+          aria-expanded="false"
+          aria-controls="tutorial-card"
+          class="inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-8"
+        >
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        </button>
+
         <!-- Reset Button -->
         <button
           id="reset-btn"
@@ -338,6 +443,40 @@
           </a>
         </div>
 
+        <!-- The guide moves next to the active channel on narrow screens. -->
+        <div id="tutorial-home">
+          <aside
+            id="tutorial-card"
+            class="tutorial-card focus:outline-none"
+            aria-label="Color guide"
+            aria-describedby="tutorial-progress tutorial-body"
+            tabindex="-1"
+            hidden
+          >
+            <p class="tutorial-copy" aria-live="polite" aria-atomic="true">
+              <span id="tutorial-progress" class="sr-only"></span>
+              <span id="tutorial-body"></span>
+            </p>
+            <div class="flex shrink-0 items-center">
+              <button id="tutorial-back" type="button" class="tutorial-action" aria-label="Previous tip" title="Previous tip">
+                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button id="tutorial-next" type="button" class="tutorial-action" aria-label="Next tip" title="Next tip">
+                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              <button
+                id="tutorial-dismiss"
+                type="button"
+                aria-label="Dismiss color guide"
+                title="Dismiss color guide"
+                class="tutorial-action"
+              >
+                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m18 6-12 12M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </aside>
+        </div>
+
       </div>
 
       <div
@@ -353,13 +492,13 @@
       <!-- Each channel preview sits directly beneath its slider -->
       <div id="channel-controls" class="min-w-0 p-3 sm:p-4 bg-card">
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 gap-5">
-          <!-- Y (Luminance) control and preview -->
-          <div class="channel-control min-w-0 space-y-2">
+        <div id="channel-grid" class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 gap-5">
+          <!-- Y (Luma) control and preview -->
+          <div class="channel-control min-w-0 space-y-2" data-channel="y">
             <div class="flex items-center justify-between">
               <label for="slider-y" class="text-xs font-medium leading-none flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-zinc-500 inline-block"></span>
-                <span>Y <span class="text-muted-foreground font-normal">Luminance</span></span>
+                <span>Y <span class="text-muted-foreground font-normal">Luma</span></span>
               </label>
             </div>
             <div class="relative flex items-center">
@@ -393,7 +532,7 @@
           </div>
 
           <!-- Cb (Chroma Blue) control and preview -->
-          <div class="channel-control min-w-0 space-y-2">
+          <div class="channel-control min-w-0 space-y-2" data-channel="cb">
             <div class="flex items-center justify-between">
               <label for="slider-cb" class="text-xs font-medium leading-none flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
@@ -431,7 +570,7 @@
           </div>
 
           <!-- Cr (Chroma Red) control and preview -->
-          <div class="channel-control min-w-0 space-y-2">
+          <div class="channel-control min-w-0 space-y-2" data-channel="cr">
             <div class="flex items-center justify-between">
               <label for="slider-cr" class="text-xs font-medium leading-none flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
@@ -1229,6 +1368,153 @@
       updateSliderFill(sliderCb);
       updateSliderFill(sliderCr);
     });
+
+    // A nonmodal guide: navigation never changes the image or slider values.
+    const TUTORIAL_STEPS = [
+      {
+        channels: ['y'],
+        body: 'Y carries brightness information, called luma. Cb and Cr carry color information: blue-difference and red-difference chroma.',
+      },
+      {
+        channels: ['cb'],
+        body: 'Above neutral, Cb shifts a pixel toward blue. Below neutral, it shifts toward yellow or green.',
+      },
+      {
+        channels: ['cr'],
+        body: 'Above neutral, Cr shifts a pixel toward red. Below neutral, it shifts toward cyan or green.',
+      },
+    ];
+    const TUTORIAL_STORAGE_KEY = 'ycbcr-color-guide-dismissed-v1';
+    const tutorialCard = document.getElementById('tutorial-card');
+    const tutorialHome = document.getElementById('tutorial-home');
+    const tutorialToggle = document.getElementById('tutorial-toggle');
+    const tutorialBody = document.getElementById('tutorial-body');
+    const tutorialProgress = document.getElementById('tutorial-progress');
+    const tutorialBack = document.getElementById('tutorial-back');
+    const tutorialNext = document.getElementById('tutorial-next');
+    const tutorialDismiss = document.getElementById('tutorial-dismiss');
+    const channelGrid = document.getElementById('channel-grid');
+    const channelCards = [...document.querySelectorAll('.channel-control')];
+    const tabletLayout = window.matchMedia('(min-width: 640px)');
+    let tutorialStep = 0;
+
+    function activeTutorialChannel() {
+      return channelCards.find(card => card.dataset.channel === TUTORIAL_STEPS[tutorialStep].channels[0]);
+    }
+
+    function positionTutorial() {
+      if (tutorialCard.hidden) return;
+      const focusedElement = document.activeElement;
+      let parent = tutorialHome;
+      let before = null;
+      if (!desktopLayout.matches) {
+        parent = tabletLayout.matches ? channelControls : channelGrid;
+        before = tabletLayout.matches ? channelGrid : activeTutorialChannel();
+      }
+      if (tutorialCard.parentElement !== parent || tutorialCard.nextElementSibling !== before) {
+        parent.insertBefore(tutorialCard, before);
+        if (tutorialCard.contains(focusedElement)) focusedElement.focus({ preventScroll: true });
+      }
+    }
+
+    function revealTutorial() {
+      if (desktopLayout.matches) {
+        // Only scroll the sidebar when its highlighted channel is out of view.
+        const panel = channelControls.getBoundingClientRect();
+        const channel = activeTutorialChannel().getBoundingClientRect();
+        if (channel.top < panel.top + 12 || channel.bottom > panel.bottom - 12) {
+          channelControls.scrollTop += channel.top - panel.top - 12;
+        }
+        tutorialCard.scrollIntoView({ block: 'nearest' });
+      } else {
+        // Keep the guide and its channel together, with no overlay covering the controls.
+        tutorialCard.scrollIntoView({ block: 'start' });
+      }
+    }
+
+    function renderTutorial(reveal = false) {
+      const step = TUTORIAL_STEPS[tutorialStep];
+      const focusedElement = document.activeElement;
+      const lastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
+      tutorialBody.textContent = step.body;
+      tutorialProgress.textContent = `Tip ${tutorialStep + 1} of ${TUTORIAL_STEPS.length}. `;
+      tutorialBack.disabled = tutorialStep === 0;
+      tutorialNext.disabled = lastStep;
+      channelCards.forEach(card => {
+        const active = step.channels.includes(card.dataset.channel);
+        card.dataset.tutorialActive = String(active);
+        const slider = card.querySelector('input');
+        if (active) slider.setAttribute('aria-describedby', 'tutorial-body');
+        else slider.removeAttribute('aria-describedby');
+      });
+      positionTutorial();
+      if (focusedElement === tutorialBack && tutorialBack.disabled) {
+        tutorialNext.focus({ preventScroll: true });
+      } else if (focusedElement === tutorialNext && tutorialNext.disabled) {
+        tutorialDismiss.focus({ preventScroll: true });
+      }
+      if (reveal) revealTutorial();
+    }
+
+    function openTutorial(focus = false) {
+      tutorialStep = 0;
+      tutorialCard.hidden = false;
+      tutorialToggle.setAttribute('aria-expanded', 'true');
+      renderTutorial(focus);
+      if (focus) tutorialCard.focus({ preventScroll: true });
+    }
+
+    function dismissTutorial() {
+      const returnFocus = tutorialCard.contains(document.activeElement);
+      tutorialCard.hidden = true;
+      tutorialToggle.setAttribute('aria-expanded', 'false');
+      channelCards.forEach(card => {
+        delete card.dataset.tutorialActive;
+        card.querySelector('input').removeAttribute('aria-describedby');
+      });
+      // Hidden grid items leave no gap; return the card to its resting position.
+      tutorialHome.appendChild(tutorialCard);
+      if (returnFocus) tutorialToggle.focus({ preventScroll: true });
+      try {
+        localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+      } catch {
+        // Embedded or private contexts can disable storage; the guide still works.
+      }
+    }
+
+    tutorialToggle.addEventListener('click', () => {
+      if (tutorialCard.hidden) openTutorial(true);
+      else dismissTutorial();
+    });
+    tutorialDismiss.addEventListener('click', dismissTutorial);
+    tutorialBack.addEventListener('click', () => {
+      if (tutorialStep > 0) {
+        tutorialStep--;
+        renderTutorial(true);
+      }
+    });
+    tutorialNext.addEventListener('click', () => {
+      if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+        tutorialStep++;
+        renderTutorial(true);
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !tutorialCard.hidden && !activeResize) {
+        event.preventDefault();
+        dismissTutorial();
+      }
+    });
+    desktopLayout.addEventListener('change', positionTutorial);
+    tabletLayout.addEventListener('change', positionTutorial);
+
+    let tutorialDismissed = false;
+    try {
+      tutorialDismissed = localStorage.getItem(TUTORIAL_STORAGE_KEY) === 'true';
+    } catch {
+      // Default to showing the guide when storage is unavailable.
+    }
+    if (!tutorialDismissed) openTutorial();
 
     // Initialize Demo on Window Load
     window.onload = function () {

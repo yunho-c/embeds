@@ -152,6 +152,22 @@
       background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
       background-size: 16px 16px;
     }
+
+    .canvas-label {
+      isolation: isolate;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    }
+
+    .canvas-label::before {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      inset: -4px -8px;
+      z-index: -1;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.25);
+      filter: blur(7px);
+    }
   </style>
 </head>
 
@@ -246,18 +262,18 @@
             <span id="hud-rgb" class="text-muted-foreground">RGB(--, --, --)</span>
           </div>
 
-          <!-- Original Badge Indicator (when Compare is active) -->
-          <div id="compare-badge" class="hidden pointer-events-none absolute top-2.5 left-2.5 rounded-md bg-primary text-primary-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider shadow-sm">
-            Original (100%)
+          <!-- Hold-to-compare hint and active original label -->
+          <div id="compare-badge" class="canvas-label pointer-events-none absolute top-2.5 right-2.5 text-white text-[10px]">
+            Hold to see original
           </div>
 
-          <!-- Subtle Unsplash Attribution Pill -->
+          <!-- Unsplash attribution label -->
           <a
             id="photo-credit"
             href="https://unsplash.com/photos/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI"
             target="_blank"
             rel="noopener noreferrer"
-            class="absolute bottom-2.5 right-2.5 rounded-md bg-background/80 hover:bg-background backdrop-blur-md border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors shadow-sm"
+            class="canvas-label absolute bottom-2.5 right-2.5 text-[10px] text-white hover:underline underline-offset-2"
           >
             Unsplash ↗
           </a>
@@ -936,7 +952,7 @@
     // Click and Hold on Image Viewport to inspect original 100% image
     function setCompare(active) {
       state.comparing = active;
-      compareBadge.classList.toggle('hidden', !active);
+      compareBadge.textContent = active ? 'original' : 'Hold to see original';
       renderAllCanvases();
     }
 

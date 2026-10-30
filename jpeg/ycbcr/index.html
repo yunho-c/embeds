@@ -101,6 +101,41 @@
       padding: 0;
     }
 
+    .preset-selector {
+      position: relative;
+      isolation: isolate;
+    }
+
+    .preset-indicator {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: calc(var(--radius) - 2px);
+      background: hsl(var(--background));
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .preset-indicator[data-ready] {
+      visibility: visible;
+      transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                  width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                  height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .preset-btn {
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .preset-indicator[data-ready] {
+        transition: none;
+      }
+    }
+
     /* Authentic shadcn/ui Slider styling */
     .shadcn-slider {
       -webkit-appearance: none;
@@ -329,12 +364,13 @@
     <div class="flex flex-wrap items-center justify-between gap-2 p-3 border-b border-border bg-muted/20">
 
       <!-- Image Switcher (shadcn Tabs-style pill group) -->
-      <div class="inline-flex h-9 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground" role="group" aria-label="Image presets">
+      <div id="preset-selector" class="preset-selector inline-flex h-9 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground" role="group" aria-label="Image presets">
+        <span id="preset-indicator" class="preset-indicator" aria-hidden="true"></span>
         <button
           type="button"
           data-index="0"
           aria-pressed="true"
-          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background text-foreground shadow-sm"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 text-foreground"
         >
           Xinghai Bridge
         </button>
@@ -342,7 +378,7 @@
           type="button"
           data-index="1"
           aria-pressed="false"
-          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
         >
           Glenfinnan Viaduct
         </button>
@@ -350,7 +386,7 @@
           type="button"
           data-index="2"
           aria-pressed="false"
-          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
         >
           Snow Mountains
         </button>
@@ -694,6 +730,8 @@
     const compareBadge = document.getElementById('compare-badge');
     const resetBtn = document.getElementById('reset-btn');
     const photoCredit = document.getElementById('photo-credit');
+    const presetSelector = document.getElementById('preset-selector');
+    const presetIndicator = document.getElementById('preset-indicator');
     const presetButtons = [...document.querySelectorAll('.preset-btn')];
     const presetImageCache = new Map();
     let presetRequestId = 0;
@@ -1059,6 +1097,25 @@
       renderAllCanvases();
     }
 
+    function updatePresetIndicator() {
+      const index = hoveredPresetIndex ?? focusedPresetIndex ?? state.currentIndex;
+      const button = presetButtons[index];
+      // Use scroll-content coordinates so the pill stays aligned on narrow screens.
+      presetIndicator.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
+      presetIndicator.style.width = `${button.offsetWidth}px`;
+      presetIndicator.style.height = `${button.offsetHeight}px`;
+      if (!presetIndicator.hasAttribute('data-ready')) {
+        // Establish the initial position before enabling transitions.
+        presetIndicator.getBoundingClientRect();
+        presetIndicator.setAttribute('data-ready', '');
+      }
+    }
+
+    // Re-measure when fonts load or responsive layout changes button sizes.
+    const presetResizeObserver = new ResizeObserver(updatePresetIndicator);
+    presetResizeObserver.observe(presetSelector);
+    presetButtons.forEach((button) => presetResizeObserver.observe(button));
+
     function updatePresetPreview() {
       const index = hoveredPresetIndex ?? focusedPresetIndex ?? state.currentIndex;
       const previewing = index !== state.currentIndex;
@@ -1079,12 +1136,10 @@
       }
       presetButtons.forEach((btn, idx) => {
         const selected = idx === state.currentIndex;
-        btn.classList.toggle('bg-background', selected);
-        btn.classList.toggle('text-foreground', selected);
-        btn.classList.toggle('shadow-sm', selected);
-        btn.classList.toggle('hover:text-foreground', !selected);
+        btn.classList.toggle('text-foreground', idx === index);
         btn.setAttribute('aria-pressed', String(selected));
       });
+      updatePresetIndicator();
       loadPresetImage(index);
     }
 

@@ -523,6 +523,13 @@
           </div>
         </div>
 
+        <section class="mt-4 border-t border-border pt-3 space-y-2" aria-labelledby="data-size-heading">
+          <h2 id="data-size-heading" class="text-xs font-medium">Uncompresed</h2>
+          <div role="status" aria-live="polite" aria-atomic="true" class="space-y-1">
+            <p id="data-size" class="text-right text-xl font-mono font-medium tabular-nums tracking-tight">—</p>
+            <p id="data-reduction" hidden class="text-[11px] text-muted-foreground">—</p>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -1101,11 +1108,36 @@
       return data;
     }
 
+    const sizeNumberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+    const byteNumberFormat = new Intl.NumberFormat('en-US');
+
+    function formatDataSize(bytes) {
+      return bytes < 1024 ? `${bytes} B` : `${sizeNumberFormat.format(bytes / 1024)} KiB`;
+    }
+
+    function updateDataSize() {
+      // Model packed 8-bit samples, not the Float32 working buffers or a JPEG file.
+      // Partial edge blocks still retain one sample, matching downsamplePlane().
+      const sampleCount = factor => Math.ceil(state.width / factor) * Math.ceil(state.height / factor);
+      const yBytes = sampleCount(state.yFactor);
+      const chromaBytes = sampleCount(state.chromaFactor);
+      const totalBytes = yBytes + 2 * chromaBytes;
+      const originalBytes = state.width * state.height * 3;
+      const reduction = 100 * (1 - totalBytes / originalBytes);
+      const total = document.getElementById('data-size');
+      total.textContent = formatDataSize(totalBytes);
+      total.title = `${byteNumberFormat.format(totalBytes)} bytes`;
+      const savings = document.getElementById('data-reduction');
+      savings.textContent = `${sizeNumberFormat.format(reduction)}% smaller`;
+      savings.title = `Full resolution: ${formatDataSize(originalBytes)} (${byteNumberFormat.format(originalBytes)} bytes)`;
+    }
+
     /**
      * Render the main composite canvas and the 3 individual Y, Cb, Cr channel planes
      */
     function renderAllCanvases() {
       if (!state.origY) return;
+      updateDataSize();
       // Direct edits and hold-to-compare always show their result immediately.
       clearImageTransition();
 

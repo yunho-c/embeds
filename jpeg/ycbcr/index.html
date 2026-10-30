@@ -1208,15 +1208,35 @@
       { slider: sliderCb, key: 'cbLevel' },
       { slider: sliderCr, key: 'crLevel' }
     ].forEach(({ slider, key }) => {
+      let activePointerId = null;
+      const clearPointerInteraction = () => { activePointerId = null; };
+      const finishPointerInteraction = (event) => {
+        if (event.pointerId === activePointerId) clearPointerInteraction();
+      };
+
+      slider.addEventListener('pointerdown', (event) => {
+        if (event.isPrimary && event.button === 0 && !slider.disabled) {
+          activePointerId = event.pointerId;
+        }
+      });
+      window.addEventListener('pointerup', finishPointerInteraction);
+      window.addEventListener('pointercancel', finishPointerInteraction);
+      slider.addEventListener('lostpointercapture', finishPointerInteraction);
+      slider.addEventListener('keydown', clearPointerInteraction);
+      slider.addEventListener('blur', clearPointerInteraction);
+      window.addEventListener('blur', clearPointerInteraction);
+
       slider.addEventListener('input', (e) => {
         let val = Number(e.target.value);
 
-        // Snap to 100% when dragging within the threshold
-        for (const pt of SNAP_POINTS) {
-          if (Math.abs(val - pt) <= SNAP_THRESHOLD) {
-            val = pt;
-            slider.value = pt;
-            break;
+        // Snap pointer interactions only; keyboard and assistive input keep exact steps.
+        if (activePointerId !== null) {
+          for (const pt of SNAP_POINTS) {
+            if (Math.abs(val - pt) <= SNAP_THRESHOLD) {
+              val = pt;
+              slider.value = pt;
+              break;
+            }
           }
         }
 

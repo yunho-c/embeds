@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chroma Subsampling Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            border: "hsl(var(--border))",
+            input: "hsl(var(--input))",
+            ring: "hsl(var(--ring))",
+            background: "hsl(var(--background))",
+            foreground: "hsl(var(--foreground))",
+            primary: {
+              DEFAULT: "hsl(var(--primary))",
+              foreground: "hsl(var(--primary-foreground))",
+            },
+            secondary: {
+              DEFAULT: "hsl(var(--secondary))",
+              foreground: "hsl(var(--secondary-foreground))",
+            },
+            muted: {
+              DEFAULT: "hsl(var(--muted))",
+              foreground: "hsl(var(--muted-foreground))",
+            },
+            accent: {
+              DEFAULT: "hsl(var(--accent))",
+              foreground: "hsl(var(--accent-foreground))",
+            },
+            card: {
+              DEFAULT: "hsl(var(--card))",
+              foreground: "hsl(var(--card-foreground))",
+            },
+          },
+          borderRadius: {
+            lg: "var(--radius)",
+            md: "calc(var(--radius) - 2px)",
+            sm: "calc(var(--radius) - 4px)",
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 240 10% 3.9%;
+      --card: 0 0% 100%;
+      --card-foreground: 240 10% 3.9%;
+      --primary: 240 5.9% 10%;
+      --primary-foreground: 0 0% 98%;
+      --secondary: 240 4.8% 95.9%;
+      --secondary-foreground: 240 5.9% 10%;
+      --muted: 240 4.8% 95.9%;
+      --muted-foreground: 240 3.8% 46.1%;
+      --accent: 240 4.8% 95.9%;
+      --accent-foreground: 240 5.9% 10%;
+      --border: 240 5.9% 90%;
+      --input: 240 5.9% 90%;
+      --ring: 240 5.9% 10%;
+      --radius: 0.5rem;
+    }
+
+    .dark {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --card: 240 10% 3.9%;
+      --card-foreground: 0 0% 98%;
+      --primary: 0 0% 98%;
+      --primary-foreground: 240 5.9% 10%;
+      --secondary: 240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --muted: 240 3.7% 15.9%;
+      --muted-foreground: 240 5% 64.9%;
+      --accent: 240 3.7% 15.9%;
+      --accent-foreground: 0 0% 98%;
+      --border: 240 3.7% 15.9%;
+      --input: 240 3.7% 15.9%;
+      --ring: 240 4.9% 83.9%;
+    }
+
+    body {
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+      font-feature-settings: "rlig" 1, "calt" 1;
+      margin: 0;
+      padding: 0;
+    }
+
+    .preset-selector {
+      position: relative;
+      isolation: isolate;
+    }
+
+    .preset-indicator {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: calc(var(--radius) - 2px);
+      background: hsl(var(--background));
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .preset-indicator[data-ready] {
+      visibility: visible;
+      transition: transform 330ms cubic-bezier(0.22, 1, 0.36, 1),
+                  width 330ms cubic-bezier(0.22, 1, 0.36, 1),
+                  height 330ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .preset-btn {
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .preset-indicator[data-ready] {
+        transition: none;
+      }
+    }
+
+    .image-crossfade {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    /* shadcn/ui-style native sliders */
+    .shadcn-slider {
+      --slider-thumb-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 9999px;
+      background: hsl(var(--muted));
+      outline: none;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .shadcn-slider:disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .shadcn-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      box-sizing: border-box;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid hsl(var(--primary));
+      box-shadow: 0 0 0 0 hsl(var(--ring) / 0.5), var(--slider-thumb-shadow);
+      cursor: grab;
+      transition: color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    }
+
+    .shadcn-slider::-moz-range-thumb {
+      box-sizing: border-box;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid hsl(var(--primary));
+      box-shadow: 0 0 0 0 hsl(var(--ring) / 0.5), var(--slider-thumb-shadow);
+      cursor: grab;
+      transition: color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    }
+
+    .shadcn-slider:not(:disabled)::-webkit-slider-thumb:hover,
+    .shadcn-slider:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 4px hsl(var(--ring) / 0.5), var(--slider-thumb-shadow);
+    }
+
+    .shadcn-slider:not(:disabled)::-moz-range-thumb:hover,
+    .shadcn-slider:focus-visible::-moz-range-thumb {
+      box-shadow: 0 0 0 4px hsl(var(--ring) / 0.5), var(--slider-thumb-shadow);
+    }
+
+    .shadcn-slider:active::-webkit-slider-thumb {
+      cursor: grabbing;
+      transform: scale(1.06);
+    }
+
+    .shadcn-slider:active::-moz-range-thumb {
+      cursor: grabbing;
+      transform: scale(1.06);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .shadcn-slider::-webkit-slider-thumb,
+      .shadcn-slider:active::-webkit-slider-thumb {
+        transition: none;
+        transform: none;
+      }
+
+      .shadcn-slider::-moz-range-thumb,
+      .shadcn-slider:active::-moz-range-thumb {
+        transition: none;
+        transform: none;
+      }
+    }
+
+    /* Subtle checkerboard background for canvas viewport */
+    .canvas-backdrop {
+      background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+
+    .canvas-label {
+      isolation: isolate;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    }
+
+    .canvas-label::before {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      inset: -4px -8px;
+      z-index: -1;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.25);
+      filter: blur(7px);
+    }
+
+    .explorer-layout {
+      --channel-width: 192px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .layout-divider {
+      display: none;
+    }
+
+    body.resizing-panels,
+    body.resizing-panels * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
+
+    @media (min-width: 768px) {
+      .explorer-layout {
+        grid-template-columns: minmax(0, 1fr) 1px var(--channel-width);
+        /* Fit all three channels at the default sidebar width. */
+        min-height: 36rem;
+      }
+
+      .layout-divider {
+        display: block;
+        position: relative;
+        align-self: stretch;
+        z-index: 20;
+        background: hsl(var(--border));
+        cursor: col-resize;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 150ms ease;
+      }
+
+      /* A generous hit area around the hairline divider. */
+      .layout-divider::before {
+        content: "";
+        position: absolute;
+        inset: 0 -7px;
+      }
+
+      .layout-divider:hover,
+      .resizing-panels .layout-divider {
+        background: hsl(var(--foreground));
+      }
+
+      /* Let previews fill the sidebar and scroll without stretching the layout. */
+      #channel-controls {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        contain: size;
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-2 sm:p-4 antialiased selection:bg-primary selection:text-primary-foreground">
+
+  <!-- Main Embed Card Container -->
+  <div class="w-full max-w-4xl rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden">
+
+    <!-- Top Bar: Preset Selector & Utility Actions -->
+    <div class="flex flex-wrap items-center justify-between gap-2 p-3 border-b border-border bg-muted/20">
+
+      <!-- Image Switcher (shadcn Tabs-style pill group) -->
+      <div id="preset-selector" class="preset-selector inline-flex h-9 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground" role="group" aria-label="Image presets">
+        <span id="preset-indicator" class="preset-indicator" aria-hidden="true"></span>
+        <button
+          type="button"
+          data-index="0"
+          aria-pressed="true"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 text-foreground"
+        >
+          Xinghai Bridge
+        </button>
+        <button
+          type="button"
+          data-index="1"
+          aria-pressed="false"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
+        >
+          Glenfinnan Viaduct
+        </button>
+        <button
+          type="button"
+          data-index="2"
+          aria-pressed="false"
+          class="preset-btn inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-foreground"
+        >
+          Snow Mountains
+        </button>
+      </div>
+
+      <!-- Right Action Controls: Reset, Theme Toggle -->
+      <div class="flex items-center gap-1.5">
+        <!-- Reset Button -->
+        <button
+          id="reset-btn"
+          type="button"
+          title="Reset downsampling to 1×"
+          aria-label="Reset downsampling to 1×"
+          class="inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-8 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+
+        <!-- Dark/Light Theme Toggle -->
+        <button
+          id="theme-btn"
+          type="button"
+          aria-label="Toggle theme"
+          class="inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-8"
+        >
+          <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <svg id="moon-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="explorer-layout" class="explorer-layout">
+
+      <!-- Main composite image -->
+      <div id="composite-panel" class="min-w-0 p-3 sm:p-4 border-b md:border-b-0 border-border bg-muted/10">
+
+        <!-- Main Composite Canvas Wrapper (Click/Hold to compare with Original) -->
+        <div
+          id="canvas-viewport"
+          title="Click and hold, or hold Space or Enter, to compare with original"
+          tabindex="0"
+          role="group"
+          aria-label="Image preview. Hold Space or Enter to compare with original."
+          class="relative w-full rounded-lg border border-border overflow-hidden canvas-backdrop bg-muted/30 group cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <canvas id="main-canvas" width="640" height="400" class="block w-full h-auto pointer-events-none"></canvas>
+
+          <!-- Loading Skeleton Overlay -->
+          <div id="loading-overlay" class="absolute inset-0 bg-background/80 backdrop-blur-xs flex items-center justify-center transition-opacity duration-200">
+            <div class="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+              <svg class="animate-spin h-4 w-4 text-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Loading image...</span>
+            </div>
+          </div>
+
+          <!-- Pixel Inspector Pill (shows on hover over canvas) -->
+          <div id="pixel-hud" class="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute bottom-2.5 left-2.5 flex items-center gap-2 rounded-md bg-background/90 backdrop-blur-md border border-border px-2.5 py-1 text-[11px] font-mono shadow-sm">
+            <span id="swatch-box" class="w-3 h-3 rounded-xs border border-border inline-block"></span>
+            <span id="hud-ycbcr" class="text-foreground">Y:-- Cb:-- Cr:--</span>
+            <span class="text-muted-foreground">|</span>
+            <span id="hud-rgb" class="text-muted-foreground">RGB(--, --, --)</span>
+          </div>
+
+          <!-- Hold-to-compare hint and active original label -->
+          <div id="compare-badge" class="canvas-label pointer-events-none absolute top-2.5 right-2.5 text-white text-[10px]">
+            Hold to see original
+          </div>
+
+          <!-- Unsplash attribution label -->
+          <a
+            id="photo-credit"
+            href="https://unsplash.com/photos/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="canvas-label absolute bottom-2.5 right-2.5 text-[10px] text-white hover:underline underline-offset-2"
+          >
+            Unsplash ↗
+          </a>
+        </div>
+
+        <!-- Independent luma and shared chroma sampling controls. -->
+        <div id="sampling-controls" class="mt-4 space-y-4">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label for="slider-y" class="text-xs font-medium">Y <span class="text-muted-foreground font-normal">Luma downsampling</span></label>
+              <output id="factor-y" for="slider-y" class="text-xs font-mono tabular-nums">1×</output>
+            </div>
+            <input id="slider-y" type="range" min="0" max="5" value="0" step="1" aria-valuetext="1× — full resolution" class="shadcn-slider block" />
+            <div class="flex justify-between text-[10px] font-mono text-muted-foreground" aria-hidden="true">
+              <span>1×</span><span>2×</span><span>4×</span><span>8×</span><span>16×</span><span>32×</span>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label for="slider-chroma" class="text-xs font-medium">CbCr <span class="text-muted-foreground font-normal">Chroma downsampling</span></label>
+              <output id="factor-chroma" for="slider-chroma" class="text-xs font-mono tabular-nums">1×</output>
+            </div>
+            <input id="slider-chroma" type="range" min="0" max="5" value="0" step="1" aria-valuetext="1× — full resolution" class="shadcn-slider block" />
+            <div class="flex justify-between text-[10px] font-mono text-muted-foreground" aria-hidden="true">
+              <span>1×</span><span>2×</span><span>4×</span><span>8×</span><span>16×</span><span>32×</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div
+        id="layout-divider"
+        class="layout-divider"
+        role="separator"
+        aria-label="Composite image width"
+        aria-orientation="vertical"
+        aria-controls="composite-panel"
+        title="Drag to resize. Double-click to reset."
+      ></div>
+
+      <!-- Individual downsampled channel previews -->
+      <div id="channel-controls" class="min-w-0 p-3 sm:p-4 bg-card">
+
+        <div id="channel-grid" class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 gap-5">
+          <!-- Y (Luma) control and preview -->
+          <div class="channel-control min-w-0 space-y-2" data-channel="y">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-medium leading-none flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-zinc-500 inline-block"></span>
+                <span>Y <span class="text-muted-foreground font-normal">Luma</span></span>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-plane="y"
+              aria-pressed="false"
+              title="Click to toggle solo Y (Luma) preview"
+              class="plane-card block w-full relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div class="w-full bg-muted overflow-hidden">
+                <canvas id="y-canvas" width="384" height="240" class="block w-full h-auto"></canvas>
+              </div>
+            </button>
+          </div>
+
+          <!-- Cb (Chroma Blue) control and preview -->
+          <div class="channel-control min-w-0 space-y-2" data-channel="cb">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-medium leading-none flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                <span>Cb <span class="text-muted-foreground font-normal">Blue-Difference</span></span>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-plane="cb"
+              aria-pressed="false"
+              title="Click to toggle solo Cb (Blue-Difference) preview"
+              class="plane-card block w-full relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div class="w-full bg-muted overflow-hidden">
+                <canvas id="cb-canvas" width="384" height="240" class="block w-full h-auto"></canvas>
+              </div>
+            </button>
+          </div>
+
+          <!-- Cr (Chroma Red) control and preview -->
+          <div class="channel-control min-w-0 space-y-2" data-channel="cr">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-medium leading-none flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                <span>Cr <span class="text-muted-foreground font-normal">Red-Difference</span></span>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-plane="cr"
+              aria-pressed="false"
+              title="Click to toggle solo Cr (Red-Difference) preview"
+              class="plane-card block w-full relative rounded-md border border-border bg-card overflow-hidden text-left transition-all hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div class="w-full bg-muted overflow-hidden">
+                <canvas id="cr-canvas" width="384" height="240" class="block w-full h-auto"></canvas>
+              </div>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Pre-defined Unsplash images requested by the user:
+     * 1. Xinghai Bridge in Dalian at dusk (LgCj9qcrfhI)
+     * 2. Steam train on Glenfinnan Viaduct (XVoyX7l9ocY)
+     * 3. Bird's eye photography of snow mountains (BKAaLmT0tIs)
+     * Try direct assets first, then the image proxy if the host blocks canvas access via CORS.
+     */
+    const PRESET_IMAGES = [
+      {
+        id: 'LgCj9qcrfhI',
+        name: 'Xinghai Bridge',
+        creditUrl: 'https://unsplash.com/photos/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI',
+        urls: [
+          'https://assets.yunhocho.com/images/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI.jpg',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://assets.yunhocho.com/images/xinghai-bridge-in-dalian-at-dusk-LgCj9qcrfhI.jpg') + '&w=1200&output=jpg'
+        ]
+      },
+      {
+        id: 'XVoyX7l9ocY',
+        name: 'Glenfinnan Viaduct',
+        creditUrl: 'https://unsplash.com/photos/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY',
+        urls: [
+          'https://assets.yunhocho.com/images/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY.jpg',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://assets.yunhocho.com/images/steam-train-on-glenfinnan-viaduct-XVoyX7l9ocY.jpg') + '&w=1200&output=jpg'
+        ]
+      },
+      {
+        id: 'BKAaLmT0tIs',
+        name: 'Snow Mountains',
+        creditUrl: 'https://unsplash.com/photos/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs',
+        urls: [
+          'https://assets.yunhocho.com/images/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs.jpg',
+          'https://wsrv.nl/?url=' + encodeURIComponent('https://assets.yunhocho.com/images/birds-eye-photography-of-snow-mountains-BKAaLmT0tIs.jpg') + '&w=1200&output=jpg'
+        ]
+      }
+    ];
+
+    // Application State
+    const state = {
+      currentIndex: 0,
+      displayedIndex: null,
+      yFactor: 1,
+      chromaFactor: 1,
+      comparing: false,
+      soloPlane: null, // null | 'y' | 'cb' | 'cr'
+      width: 640,
+      height: 400,
+      thumbWidth: 384,
+      thumbHeight: 240,
+      // Original YCbCr planes; sampling is always computed from these originals.
+      origY: null,
+      origCb: null,
+      origCr: null,
+    };
+
+    // DOM Elements
+    const explorerLayout = document.getElementById('explorer-layout');
+    const layoutDivider = document.getElementById('layout-divider');
+    const channelControls = document.getElementById('channel-controls');
+    const canvasViewport = document.getElementById('canvas-viewport');
+    const mainCanvas = document.getElementById('main-canvas');
+    const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
+    const yCanvas = document.getElementById('y-canvas');
+    const yCtx = yCanvas.getContext('2d');
+    const cbCanvas = document.getElementById('cb-canvas');
+    const cbCtx = cbCanvas.getContext('2d');
+    const crCanvas = document.getElementById('cr-canvas');
+    const crCtx = crCanvas.getContext('2d');
+
+    let imageTransition = null;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function clearImageTransition() {
+      if (!imageTransition) return;
+      imageTransition.animation.cancel();
+      imageTransition.overlay.remove();
+      imageTransition = null;
+    }
+
+    reducedMotion.addEventListener('change', () => {
+      if (reducedMotion.matches) clearImageTransition();
+    });
+
+    function captureImageFrame() {
+      const frame = canvasViewport;
+      const bounds = frame.getBoundingClientRect();
+      const snapshot = document.createElement('canvas');
+      const ratio = window.devicePixelRatio || 1;
+      snapshot.width = Math.max(1, Math.round(frame.clientWidth * ratio));
+      snapshot.height = Math.max(1, Math.round(frame.clientHeight * ratio));
+      const ctx = snapshot.getContext('2d');
+      ctx.scale(ratio, ratio);
+
+      function drawVisibleLayer(layer, opacity = 1) {
+        const rect = layer.getBoundingClientRect();
+        let width = rect.width;
+        let height = rect.height;
+        if (getComputedStyle(layer).objectFit === 'contain') {
+          const scale = Math.min(width / layer.width, height / layer.height);
+          width = layer.width * scale;
+          height = layer.height * scale;
+        }
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(layer,
+          rect.left - bounds.left - frame.clientLeft + (rect.width - width) / 2,
+          rect.top - bounds.top - frame.clientTop + (rect.height - height) / 2,
+          width, height);
+      }
+
+      drawVisibleLayer(mainCanvas);
+      if (imageTransition) {
+        // Flatten the current blend before replacing an interrupted transition.
+        drawVisibleLayer(imageTransition.overlay, Number(getComputedStyle(imageTransition.overlay).opacity));
+      }
+      snapshot.className = 'image-crossfade';
+      snapshot.setAttribute('aria-hidden', 'true');
+      return snapshot;
+    }
+
+    function fadeImageFrame(overlay) {
+      if (!overlay) return;
+      mainCanvas.after(overlay);
+      const animation = overlay.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 200,
+        easing: 'ease-out',
+        fill: 'forwards',
+      });
+      imageTransition = { overlay, animation };
+      animation.onfinish = () => {
+        overlay.remove();
+        animation.cancel();
+        if (imageTransition?.overlay === overlay) imageTransition = null;
+      };
+    }
+
+    const sliderY = document.getElementById('slider-y');
+    const sliderChroma = document.getElementById('slider-chroma');
+    const SAMPLING_FACTORS = [1, 2, 4, 8, 16, 32];
+    const sampledPlanes = new Map();
+
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const compareBadge = document.getElementById('compare-badge');
+    const resetBtn = document.getElementById('reset-btn');
+    const photoCredit = document.getElementById('photo-credit');
+    const presetSelector = document.getElementById('preset-selector');
+    const presetIndicator = document.getElementById('preset-indicator');
+    const presetButtons = [...document.querySelectorAll('.preset-btn')];
+    const presetImageCache = new Map();
+    let presetRequestId = 0;
+    let hoveredPresetIndex = null;
+    let focusedPresetIndex = null;
+
+    const pixelHud = document.getElementById('pixel-hud');
+    const swatchBox = document.getElementById('swatch-box');
+    const hudYcbcr = document.getElementById('hud-ycbcr');
+    const hudRgb = document.getElementById('hud-rgb');
+
+    // Resize the display columns without touching the image buffers.
+    const desktopLayout = window.matchMedia('(min-width: 768px)');
+    const DEFAULT_CHANNEL_WIDTH = 192;
+    const MIN_CHANNEL_WIDTH = 176;
+    const MIN_COMPOSITE_WIDTH = 320;
+    let preferredChannelWidth = DEFAULT_CHANNEL_WIDTH;
+    let activeResize = null;
+
+    function splitBounds() {
+      const available = Math.max(1, explorerLayout.clientWidth - 1);
+      const max = Math.max(0, available - MIN_COMPOSITE_WIDTH);
+      return { min: Math.min(MIN_CHANNEL_WIDTH, max), max };
+    }
+
+    function updateSplit() {
+      if (!desktopLayout.matches) return;
+      const { min, max } = splitBounds();
+      const width = Math.min(max, Math.max(min, preferredChannelWidth));
+      explorerLayout.style.setProperty('--channel-width', `${width}px`);
+    }
+
+    function setChannelWidth(width) {
+      const { min, max } = splitBounds();
+      preferredChannelWidth = Math.min(max, Math.max(min, width));
+      updateSplit();
+    }
+
+    function stopResizing(cancel = false) {
+      if (!activeResize) return;
+      const resize = activeResize;
+      activeResize = null;
+      document.body.classList.remove('resizing-panels');
+      if (cancel) {
+        preferredChannelWidth = resize.preferredWidth;
+        updateSplit();
+      }
+      if (layoutDivider.hasPointerCapture(resize.pointerId)) {
+        layoutDivider.releasePointerCapture(resize.pointerId);
+      }
+    }
+
+    layoutDivider.addEventListener('pointerdown', (event) => {
+      if (!desktopLayout.matches || !event.isPrimary || event.button !== 0) return;
+      event.preventDefault();
+      activeResize = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startWidth: channelControls.getBoundingClientRect().width,
+        preferredWidth: preferredChannelWidth,
+      };
+      layoutDivider.setPointerCapture(event.pointerId);
+      document.body.classList.add('resizing-panels');
+    });
+
+    layoutDivider.addEventListener('pointermove', (event) => {
+      if (!activeResize || event.pointerId !== activeResize.pointerId) return;
+      setChannelWidth(activeResize.startWidth + activeResize.startX - event.clientX);
+    });
+
+    layoutDivider.addEventListener('pointerup', (event) => {
+      if (event.pointerId === activeResize?.pointerId) stopResizing();
+    });
+    layoutDivider.addEventListener('pointercancel', (event) => {
+      if (event.pointerId === activeResize?.pointerId) stopResizing(true);
+    });
+    layoutDivider.addEventListener('lostpointercapture', (event) => {
+      if (event.pointerId === activeResize?.pointerId) stopResizing();
+    });
+    window.addEventListener('blur', () => stopResizing());
+    layoutDivider.addEventListener('dblclick', () => setChannelWidth(DEFAULT_CHANNEL_WIDTH));
+
+    desktopLayout.addEventListener('change', () => {
+      stopResizing();
+      updateSplit();
+    });
+    const layoutObserver = new ResizeObserver(updateSplit);
+    layoutObserver.observe(explorerLayout);
+    updateSplit();
+
+    function setImageDimensions(width, height) {
+      state.width = width;
+      state.height = height;
+      const thumbnailScale = 384 / Math.max(width, height);
+      state.thumbWidth = Math.max(1, Math.round(width * thumbnailScale));
+      state.thumbHeight = Math.max(1, Math.round(height * thumbnailScale));
+      mainCanvas.width = width;
+      mainCanvas.height = height;
+      [yCanvas, cbCanvas, crCanvas].forEach((canvas) => {
+        canvas.width = state.thumbWidth;
+        canvas.height = state.thumbHeight;
+      });
+    }
+
+    // Update slider track fill gradient to match shadcn/ui primary progress bar
+    function updateSliderFill(slider) {
+      const pct = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
+      slider.style.background = `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${pct}%, hsl(var(--muted)) ${pct}%, hsl(var(--muted)) 100%)`;
+    }
+
+    /**
+     * High-detail procedural scene fallback if network/CORS blocks direct image pixel extraction
+     */
+    function renderProceduralFallback(ctx, width, height, index) {
+      ctx.save();
+      if (index === 0) {
+        // Xinghai Bridge in Dalian at dusk (Vibrant orange/magenta dusk sky, dark blue sea, suspension bridge)
+        const sky = ctx.createLinearGradient(0, 0, 0, height * 0.62);
+        sky.addColorStop(0, '#1e1b4b');
+        sky.addColorStop(0.35, '#6d28d9');
+        sky.addColorStop(0.7, '#db2777');
+        sky.addColorStop(1, '#f97316');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, width, height * 0.62);
+
+        const sea = ctx.createLinearGradient(0, height * 0.62, 0, height);
+        sea.addColorStop(0, '#431407');
+        sea.addColorStop(0.3, '#1e1b4b');
+        sea.addColorStop(1, '#090d16');
+        ctx.fillStyle = sea;
+        ctx.fillRect(0, height * 0.62, width, height * 0.38);
+
+        // Bridge pylons & suspension cables
+        ctx.strokeStyle = '#fb923c';
+        ctx.lineWidth = 2;
+        const deckY = height * 0.58;
+        ctx.beginPath();
+        ctx.moveTo(0, deckY);
+        ctx.lineTo(width, deckY);
+        ctx.stroke();
+
+        // Towers
+        const t1 = width * 0.28, t2 = width * 0.72;
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(t1 - 6, height * 0.28, 12, height * 0.36);
+        ctx.fillRect(t2 - 6, height * 0.28, 12, height * 0.36);
+
+        // Catenary cable curve
+        ctx.strokeStyle = '#fdba74';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, deckY - 10);
+        ctx.quadraticCurveTo(t1 * 0.5, deckY, t1, height * 0.3);
+        ctx.quadraticCurveTo((t1 + t2) / 2, deckY + 25, t2, height * 0.3);
+        ctx.quadraticCurveTo(t2 + (width - t2) * 0.5, deckY, width, deckY - 10);
+        ctx.stroke();
+      } else if (index === 1) {
+        // Glenfinnan Viaduct (Lush Scottish highland greens, stone viaduct curve, white steam plume)
+        const sky = ctx.createLinearGradient(0, 0, 0, height * 0.4);
+        sky.addColorStop(0, '#94a3b8');
+        sky.addColorStop(1, '#cbd5e1');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, width, height);
+
+        // Highland hills
+        ctx.fillStyle = '#3f6212';
+        ctx.beginPath();
+        ctx.moveTo(0, height * 0.35);
+        ctx.quadraticCurveTo(width * 0.3, height * 0.15, width * 0.65, height * 0.38);
+        ctx.lineTo(width, height * 0.25);
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.fill();
+
+        ctx.fillStyle = '#4d7c0f';
+        ctx.beginPath();
+        ctx.moveTo(0, height * 0.55);
+        ctx.quadraticCurveTo(width * 0.5, height * 0.4, width, height * 0.6);
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.fill();
+
+        // Viaduct arches
+        ctx.fillStyle = '#78716c';
+        const archCount = 10;
+        const startX = width * 0.1;
+        const spanW = width * 0.8;
+        const archW = spanW / archCount;
+        for (let i = 0; i < archCount; i++) {
+          const x = startX + i * archW;
+          ctx.fillRect(x, height * 0.48, archW * 0.35, height * 0.22);
+        }
+        ctx.fillRect(startX, height * 0.46, spanW, height * 0.04);
+
+        // Red/black steam train & white steam
+        ctx.fillStyle = '#991b1b';
+        ctx.fillRect(width * 0.25, height * 0.43, width * 0.35, height * 0.03);
+        ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+        for (let s = 0; s < 6; s++) {
+          ctx.beginPath();
+          ctx.arc(width * 0.25 - s * 18, height * 0.41 - s * 6, 14 + s * 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // Bird's eye photography of snow mountains (Pink/violet alpenglow over crisp blue/white snow ridges)
+        const bg = ctx.createLinearGradient(0, 0, width, height);
+        bg.addColorStop(0, '#f472b6');
+        bg.addColorStop(0.45, '#c084fc');
+        bg.addColorStop(1, '#38bdf8');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, width, height);
+
+        // Snow ridge facets
+        const ridges = [
+          [[0, height * 0.3], [width * 0.35, height * 0.12], [width * 0.7, height * 0.45], [width, height * 0.2], [width, height], [0, height]],
+          [[0, height * 0.65], [width * 0.25, height * 0.42], [width * 0.58, height * 0.72], [width * 0.88, height * 0.48], [width, height * 0.65], [width, height], [0, height]]
+        ];
+        ridges.forEach((pts, idx) => {
+          ctx.fillStyle = idx === 0 ? 'rgba(241, 245, 249, 0.85)' : 'rgba(226, 232, 240, 0.95)';
+          ctx.beginPath();
+          pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+          ctx.closePath();
+          ctx.fill();
+        });
+      }
+      ctx.restore();
+    }
+
+    /**
+     * Precompute ITU-R BT.601 full-range YCbCr buffers from an HTMLImageElement or fallback canvas
+     */
+    function extractYCbCrBuffers(sourceDrawFn, width, height) {
+      const thumbnailScale = 384 / Math.max(width, height);
+      const buffers = {
+        width,
+        height,
+        thumbWidth: Math.max(1, Math.round(width * thumbnailScale)),
+        thumbHeight: Math.max(1, Math.round(height * thumbnailScale)),
+      };
+
+      // 1. Main resolution buffer
+      const offscreen = document.createElement('canvas');
+      offscreen.width = width;
+      offscreen.height = height;
+      const oCtx = offscreen.getContext('2d');
+      sourceDrawFn(oCtx, width, height);
+
+      const imgData = oCtx.getImageData(0, 0, width, height).data;
+      const numPixels = width * height;
+      buffers.origY = new Float32Array(numPixels);
+      buffers.origCb = new Float32Array(numPixels);
+      buffers.origCr = new Float32Array(numPixels);
+
+      for (let i = 0, p = 0; i < imgData.length; i += 4, p++) {
+        const r = imgData[i];
+        const g = imgData[i + 1];
+        const b = imgData[i + 2];
+
+        // ITU-R BT.601 conversion
+        buffers.origY[p]  = 0.299 * r + 0.587 * g + 0.114 * b;
+        buffers.origCb[p] = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        buffers.origCr[p] = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+      }
+
+      return buffers;
+    }
+
+    /**
+     * Prepare each preset once, including its fallback, without changing the visible image.
+     */
+    function preparePresetImage(index) {
+      if (presetImageCache.has(index)) return presetImageCache.get(index);
+      const preset = PRESET_IMAGES[index];
+      const entry = { buffers: null, promise: null };
+      presetImageCache.set(index, entry);
+      entry.promise = new Promise((resolve) => {
+        let urlIdx = 0;
+
+        function complete(sourceDrawFn, width, height) {
+          entry.buffers = extractYCbCrBuffers(sourceDrawFn, width, height);
+          resolve(entry.buffers);
+        }
+
+        function tryNextUrl() {
+          if (urlIdx >= preset.urls.length) {
+            complete((ctx, w, h) => renderProceduralFallback(ctx, w, h, index), 640, 400);
+            return;
+          }
+
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const scale = 720 / Math.max(img.naturalWidth, img.naturalHeight);
+              complete(
+                (ctx, w, h) => ctx.drawImage(img, 0, 0, w, h),
+                Math.max(1, Math.round(img.naturalWidth * scale)),
+                Math.max(1, Math.round(img.naturalHeight * scale))
+              );
+            } catch {
+              urlIdx++;
+              tryNextUrl();
+            }
+          };
+          img.onerror = () => {
+            urlIdx++;
+            tryNextUrl();
+          };
+          img.src = preset.urls[urlIdx];
+        }
+
+        tryNextUrl();
+      });
+      return entry;
+    }
+
+    function loadPresetImage(index) {
+      const requestId = ++presetRequestId;
+      if (state.displayedIndex === index) {
+        loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+        return;
+      }
+      const entry = preparePresetImage(index);
+      if (entry.buffers) {
+        finishLoad(index, entry.buffers);
+        return;
+      }
+      // Keep the current image visible while a preview downloads.
+      if (state.displayedIndex === null) {
+        loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      }
+      entry.promise.then((buffers) => {
+        // A late download must never replace a newer hover or selection.
+        if (requestId === presetRequestId) finishLoad(index, buffers);
+      });
+    }
+
+    function finishLoad(index, buffers) {
+      const snapshot = state.displayedIndex !== null && !reducedMotion.matches
+        ? captureImageFrame() : null;
+      clearImageTransition();
+      Object.assign(state, buffers);
+      sampledPlanes.clear();
+      setImageDimensions(buffers.width, buffers.height);
+      state.displayedIndex = index;
+      photoCredit.href = PRESET_IMAGES[index].creditUrl;
+      loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+      renderAllCanvases();
+      fadeImageFrame(snapshot);
+    }
+
+    function updatePresetIndicator() {
+      const index = hoveredPresetIndex ?? focusedPresetIndex ?? state.currentIndex;
+      const button = presetButtons[index];
+      // Use scroll-content coordinates so the pill stays aligned on narrow screens.
+      presetIndicator.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
+      presetIndicator.style.width = `${button.offsetWidth}px`;
+      presetIndicator.style.height = `${button.offsetHeight}px`;
+      if (!presetIndicator.hasAttribute('data-ready')) {
+        // Establish the initial position before enabling transitions.
+        presetIndicator.getBoundingClientRect();
+        presetIndicator.setAttribute('data-ready', '');
+      }
+    }
+
+    // Re-measure when fonts load or responsive layout changes button sizes.
+    const presetResizeObserver = new ResizeObserver(updatePresetIndicator);
+    presetResizeObserver.observe(presetSelector);
+    presetButtons.forEach((button) => presetResizeObserver.observe(button));
+
+    function updatePresetPreview() {
+      const index = hoveredPresetIndex ?? focusedPresetIndex ?? state.currentIndex;
+      const previewing = index !== state.currentIndex;
+      // Keep the selector still while previewing photographs with different aspect ratios.
+      if (previewing && !canvasViewport.style.height) {
+        [mainCanvas, yCanvas, cbCanvas, crCanvas].forEach((canvas) => {
+          const frame = canvas.parentElement;
+          frame.style.height = `${frame.getBoundingClientRect().height}px`;
+          canvas.style.height = '100%';
+          canvas.style.objectFit = 'contain';
+        });
+      } else if (!previewing) {
+        [mainCanvas, yCanvas, cbCanvas, crCanvas].forEach((canvas) => {
+          canvas.parentElement.style.removeProperty('height');
+          canvas.style.removeProperty('height');
+          canvas.style.removeProperty('object-fit');
+        });
+      }
+      presetButtons.forEach((btn, idx) => {
+        const selected = idx === state.currentIndex;
+        btn.classList.toggle('text-foreground', idx === index);
+        btn.setAttribute('aria-pressed', String(selected));
+      });
+      updatePresetIndicator();
+      loadPresetImage(index);
+    }
+
+    // Box-filter each plane, including partial blocks along the right/bottom edges.
+    // Hold each averaged sample over its source block (nearest-neighbor reconstruction).
+    function downsamplePlane(source, width, height, factor) {
+      if (factor === 1) return source;
+      const result = new Float32Array(source.length);
+      for (let top = 0; top < height; top += factor) {
+        const bottom = Math.min(top + factor, height);
+        for (let left = 0; left < width; left += factor) {
+          const right = Math.min(left + factor, width);
+          let sum = 0;
+          for (let y = top; y < bottom; y++) {
+            for (let x = left; x < right; x++) sum += source[y * width + x];
+          }
+          const average = sum / ((right - left) * (bottom - top));
+          for (let y = top; y < bottom; y++) result.fill(average, y * width + left, y * width + right);
+        }
+      }
+      return result;
+    }
+
+    function getSampledPlane(channel) {
+      const factor = channel === 'y' ? state.yFactor : state.chromaFactor;
+      const source = state[{ y: 'origY', cb: 'origCb', cr: 'origCr' }[channel]];
+      const cached = sampledPlanes.get(channel);
+      if (cached?.factor === factor) return cached.data;
+      const data = downsamplePlane(source, state.width, state.height, factor);
+      sampledPlanes.set(channel, { factor, data });
+      return data;
+    }
+
+    /**
+     * Render the main composite canvas and the 3 individual Y, Cb, Cr channel planes
+     */
+    function renderAllCanvases() {
+      if (!state.origY) return;
+      // Direct edits and hold-to-compare always show their result immediately.
+      clearImageTransition();
+
+      const isDefault = state.yFactor === 1 && state.chromaFactor === 1 && !state.soloPlane;
+      resetBtn.disabled = isDefault;
+
+      // 1. Render Main Canvas
+      const mainImgData = mainCtx.createImageData(state.width, state.height);
+      const dst = mainImgData.data;
+      const n = state.width * state.height;
+
+      const origY = state.comparing ? state.origY : getSampledPlane('y');
+      const origCb = state.comparing ? state.origCb : getSampledPlane('cb');
+      const origCr = state.comparing ? state.origCr : getSampledPlane('cr');
+
+      for (let p = 0, i = 0; p < n; p++, i += 4) {
+        const yMod  = origY[p];
+        const cbOffset = origCb[p] - 128;
+        const crOffset = origCr[p] - 128;
+
+        let r, g, b;
+
+        if (state.soloPlane === 'y' && !state.comparing) {
+          r = g = b = yMod;
+        } else if (state.soloPlane === 'cb' && !state.comparing) {
+          // Visualize Cb plane tinted on neutral 128 luma
+          r = 128;
+          g = 128 - 0.344136 * cbOffset;
+          b = 128 + 1.772 * cbOffset;
+        } else if (state.soloPlane === 'cr' && !state.comparing) {
+          // Visualize Cr plane tinted on neutral 128 luma
+          r = 128 + 1.402 * crOffset;
+          g = 128 - 0.714136 * crOffset;
+          b = 128;
+        } else {
+          // Standard full YCbCr -> RGB reconstruction
+          r = yMod + 1.402 * crOffset;
+          g = yMod - 0.344136 * cbOffset - 0.714136 * crOffset;
+          b = yMod + 1.772 * cbOffset;
+        }
+
+        dst[i]     = r < 0 ? 0 : r > 255 ? 255 : r;
+        dst[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+        dst[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+        dst[i + 3] = 255;
+      }
+      mainCtx.putImageData(mainImgData, 0, 0);
+
+      // 2. Render the 3 Decomposed Thumbnail Planes (Y, Cb, Cr)
+      const tn = state.thumbWidth * state.thumbHeight;
+      const yImg = yCtx.createImageData(state.thumbWidth, state.thumbHeight);
+      const cbImg = cbCtx.createImageData(state.thumbWidth, state.thumbHeight);
+      const crImg = crCtx.createImageData(state.thumbWidth, state.thumbHeight);
+
+      const yDst = yImg.data;
+      const cbDst = cbImg.data;
+      const crDst = crImg.data;
+
+      // Sample the same reconstructed planes as the main image, so block boundaries agree.
+      const tY = origY;
+      const tCb = origCb;
+      const tCr = origCr;
+
+      for (let p = 0, i = 0; p < tn; p++, i += 4) {
+        const tx = p % state.thumbWidth;
+        const ty = Math.floor(p / state.thumbWidth);
+        const sx = Math.min(state.width - 1, Math.floor((tx + 0.5) * state.width / state.thumbWidth));
+        const sy = Math.min(state.height - 1, Math.floor((ty + 0.5) * state.height / state.thumbHeight));
+        const sourcePixel = sy * state.width + sx;
+        // Y Plane (Grayscale luminance)
+        const yVal = tY[sourcePixel];
+        yDst[i] = yDst[i + 1] = yDst[i + 2] = yVal;
+        yDst[i + 3] = 255;
+
+        // Cb Plane (Blue-yellow chrominance around neutral 128 luma)
+        const cbOff = tCb[sourcePixel] - 128;
+        cbDst[i]     = 128;
+        cbDst[i + 1] = Math.min(255, Math.max(0, 128 - 0.344136 * cbOff));
+        cbDst[i + 2] = Math.min(255, Math.max(0, 128 + 1.772 * cbOff));
+        cbDst[i + 3] = 255;
+
+        // Cr Plane (Red-cyan chrominance around neutral 128 luma)
+        const crOff = tCr[sourcePixel] - 128;
+        crDst[i]     = Math.min(255, Math.max(0, 128 + 1.402 * crOff));
+        crDst[i + 1] = Math.min(255, Math.max(0, 128 - 0.714136 * crOff));
+        crDst[i + 2] = 128;
+        crDst[i + 3] = 255;
+      }
+
+      yCtx.putImageData(yImg, 0, 0);
+      cbCtx.putImageData(cbImg, 0, 0);
+      crCtx.putImageData(crImg, 0, 0);
+    }
+
+    function updateSamplingControls() {
+      [
+        { slider: sliderY, factor: state.yFactor, output: 'factor-y' },
+        { slider: sliderChroma, factor: state.chromaFactor, output: 'factor-chroma' },
+      ].forEach(({ slider, factor, output }) => {
+        slider.value = SAMPLING_FACTORS.indexOf(factor);
+        slider.setAttribute('aria-valuetext', factor === 1
+          ? '1× — full resolution' : `${factor}× — one sample per ${factor} by ${factor} block`);
+        document.getElementById(output).value = `${factor}×`;
+        updateSliderFill(slider);
+      });
+      resetBtn.disabled = state.yFactor === 1 && state.chromaFactor === 1 && !state.soloPlane;
+    }
+
+    [
+      { slider: sliderY, key: 'yFactor' },
+      { slider: sliderChroma, key: 'chromaFactor' },
+    ].forEach(({ slider, key }) => {
+      slider.addEventListener('input', () => {
+        state[key] = SAMPLING_FACTORS[Number(slider.value)];
+        updateSamplingControls();
+        renderAllCanvases();
+      });
+    });
+
+    // Hover or keyboard focus previews a preset; only a click commits the selection.
+    presetButtons.forEach((btn) => {
+      const index = Number(btn.dataset.index);
+      btn.addEventListener('pointerenter', (event) => {
+        if (event.pointerType === 'touch' || event.buttons !== 0) return;
+        hoveredPresetIndex = index;
+        updatePresetPreview();
+      });
+      btn.addEventListener('pointerleave', () => {
+        if (hoveredPresetIndex !== index) return;
+        hoveredPresetIndex = null;
+        updatePresetPreview();
+      });
+      btn.addEventListener('pointercancel', () => {
+        if (hoveredPresetIndex !== index) return;
+        hoveredPresetIndex = null;
+        updatePresetPreview();
+      });
+      btn.addEventListener('focus', () => {
+        if (!btn.matches(':focus-visible')) return;
+        focusedPresetIndex = index;
+        updatePresetPreview();
+      });
+      btn.addEventListener('blur', () => {
+        if (focusedPresetIndex !== index) return;
+        focusedPresetIndex = null;
+        updatePresetPreview();
+      });
+      btn.addEventListener('click', () => {
+        state.currentIndex = index;
+        updatePresetPreview();
+      });
+    });
+    window.addEventListener('blur', () => {
+      hoveredPresetIndex = null;
+      focusedPresetIndex = null;
+      updatePresetPreview();
+    });
+
+    // Solo Channel Plane Inspection Cards
+    document.querySelectorAll('.plane-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const plane = card.getAttribute('data-plane');
+        state.soloPlane = state.soloPlane === plane ? null : plane;
+
+        document.querySelectorAll('.plane-card').forEach((c) => {
+          const selected = c.getAttribute('data-plane') === state.soloPlane;
+          c.classList.toggle('ring-2', selected);
+          c.classList.toggle('ring-primary', selected);
+          c.setAttribute('aria-pressed', String(selected));
+        });
+
+        renderAllCanvases();
+      });
+    });
+
+    // Click and hold to inspect the original full-resolution image
+    function setCompare(active) {
+      state.comparing = active;
+      compareBadge.textContent = active ? 'original' : 'Hold to see original';
+      renderAllCanvases();
+    }
+
+    canvasViewport.addEventListener('keydown', (event) => {
+      if (event.target !== canvasViewport || ![' ', 'Enter'].includes(event.key)) return;
+      event.preventDefault();
+      if (!event.repeat) setCompare(true);
+    });
+    canvasViewport.addEventListener('keyup', (event) => {
+      if (event.target !== canvasViewport || ![' ', 'Enter'].includes(event.key)) return;
+      event.preventDefault();
+      setCompare(false);
+    });
+    canvasViewport.addEventListener('blur', () => {
+      if (state.comparing) setCompare(false);
+    });
+    canvasViewport.addEventListener('mousedown', (e) => {
+      // Ignore clicks on the Unsplash attribution link
+      if (e.target.closest('#photo-credit')) return;
+      setCompare(true);
+    });
+    window.addEventListener('blur', () => {
+      if (state.comparing) setCompare(false);
+    });
+    window.addEventListener('mouseup', () => {
+      if (state.comparing) setCompare(false);
+    });
+    canvasViewport.addEventListener('touchstart', (e) => {
+      if (e.target.closest('#photo-credit')) return;
+      e.preventDefault();
+      setCompare(true);
+    }, { passive: false });
+    window.addEventListener('touchend', () => {
+      if (state.comparing) setCompare(false);
+    });
+    window.addEventListener('touchcancel', () => {
+      if (state.comparing) setCompare(false);
+    });
+
+    // Reset All Button
+    resetBtn.addEventListener('click', () => {
+      state.soloPlane = null;
+      document.querySelectorAll('.plane-card').forEach(c => {
+        c.classList.remove('ring-2', 'ring-primary');
+        c.setAttribute('aria-pressed', 'false');
+      });
+      state.yFactor = state.chromaFactor = 1;
+      updateSamplingControls();
+      renderAllCanvases();
+    });
+
+    // Live Pixel Inspector on Canvas Viewport Hover
+    canvasViewport.addEventListener('mousemove', (e) => {
+      if (!state.origY) return;
+      const rect = mainCanvas.getBoundingClientRect();
+      const scale = Math.min(rect.width / state.width, rect.height / state.height);
+      const imageLeft = rect.left + (rect.width - state.width * scale) / 2;
+      const imageTop = rect.top + (rect.height - state.height * scale) / 2;
+      const x = Math.min(state.width - 1, Math.max(0, Math.floor((e.clientX - imageLeft) / scale)));
+      const y = Math.min(state.height - 1, Math.max(0, Math.floor((e.clientY - imageTop) / scale)));
+      const p = y * state.width + x;
+
+      const curY = Math.round((state.comparing ? state.origY : getSampledPlane('y'))[p]);
+      const curCb = Math.round((state.comparing ? state.origCb : getSampledPlane('cb'))[p]);
+      const curCr = Math.round((state.comparing ? state.origCr : getSampledPlane('cr'))[p]);
+
+      const pixel = mainCtx.getImageData(x, y, 1, 1).data;
+      swatchBox.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+      hudYcbcr.textContent = `Y:${curY} Cb:${curCb} Cr:${curCr}`;
+      hudRgb.textContent = `RGB(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+    });
+
+    // Dark / Light Theme Switcher
+    const themeBtn = document.getElementById('theme-btn');
+    const sunIcon = document.getElementById('sun-icon');
+    const moonIcon = document.getElementById('moon-icon');
+
+    themeBtn.addEventListener('click', () => {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      sunIcon.classList.toggle('hidden', isDark);
+      moonIcon.classList.toggle('hidden', !isDark);
+      updateSliderFill(sliderY);
+      updateSliderFill(sliderChroma);
+    });
+
+    // Initialize Demo on Window Load
+    window.onload = function () {
+      updateSamplingControls();
+      updatePresetPreview();
+      // Warm the other presets after the initial image is ready for immediate hover previews.
+      preparePresetImage(state.currentIndex).promise.then(() => {
+        PRESET_IMAGES.forEach((_, index) => preparePresetImage(index));
+      });
+    };
+  </script>
+</body>
+</html>

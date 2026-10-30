@@ -136,6 +136,15 @@
       }
     }
 
+    .image-crossfade {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
     /* Authentic shadcn/ui Slider styling */
     .shadcn-slider {
       -webkit-appearance: none;
@@ -722,6 +731,72 @@
     const crCanvas = document.getElementById('cr-canvas');
     const crCtx = crCanvas.getContext('2d');
 
+    let imageTransition = null;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function clearImageTransition() {
+      if (!imageTransition) return;
+      imageTransition.animation.cancel();
+      imageTransition.overlay.remove();
+      imageTransition = null;
+    }
+
+    reducedMotion.addEventListener('change', () => {
+      if (reducedMotion.matches) clearImageTransition();
+    });
+
+    function captureImageFrame() {
+      const frame = canvasViewport;
+      const bounds = frame.getBoundingClientRect();
+      const snapshot = document.createElement('canvas');
+      const ratio = window.devicePixelRatio || 1;
+      snapshot.width = Math.max(1, Math.round(frame.clientWidth * ratio));
+      snapshot.height = Math.max(1, Math.round(frame.clientHeight * ratio));
+      const ctx = snapshot.getContext('2d');
+      ctx.scale(ratio, ratio);
+
+      function drawVisibleLayer(layer, opacity = 1) {
+        const rect = layer.getBoundingClientRect();
+        let width = rect.width;
+        let height = rect.height;
+        if (getComputedStyle(layer).objectFit === 'contain') {
+          const scale = Math.min(width / layer.width, height / layer.height);
+          width = layer.width * scale;
+          height = layer.height * scale;
+        }
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(layer,
+          rect.left - bounds.left - frame.clientLeft + (rect.width - width) / 2,
+          rect.top - bounds.top - frame.clientTop + (rect.height - height) / 2,
+          width, height);
+      }
+
+      drawVisibleLayer(mainCanvas);
+      if (imageTransition) {
+        // Flatten the current blend before replacing an interrupted transition.
+        drawVisibleLayer(imageTransition.overlay, Number(getComputedStyle(imageTransition.overlay).opacity));
+      }
+      snapshot.className = 'image-crossfade';
+      snapshot.setAttribute('aria-hidden', 'true');
+      return snapshot;
+    }
+
+    function fadeImageFrame(overlay) {
+      if (!overlay) return;
+      mainCanvas.after(overlay);
+      const animation = overlay.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 200,
+        easing: 'ease-out',
+        fill: 'forwards',
+      });
+      imageTransition = { overlay, animation };
+      animation.onfinish = () => {
+        overlay.remove();
+        animation.cancel();
+        if (imageTransition?.overlay === overlay) imageTransition = null;
+      };
+    }
+
     const sliderY = document.getElementById('slider-y');
     const sliderCb = document.getElementById('slider-cb');
     const sliderCr = document.getElementById('slider-cr');
@@ -1081,7 +1156,10 @@
         finishLoad(index, entry.buffers);
         return;
       }
-      loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      // Keep the current image visible while a preview downloads.
+      if (state.displayedIndex === null) {
+        loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      }
       entry.promise.then((buffers) => {
         // A late download must never replace a newer hover or selection.
         if (requestId === presetRequestId) finishLoad(index, buffers);
@@ -1089,12 +1167,16 @@
     }
 
     function finishLoad(index, buffers) {
+      const snapshot = state.displayedIndex !== null && !reducedMotion.matches
+        ? captureImageFrame() : null;
+      clearImageTransition();
       Object.assign(state, buffers);
       setImageDimensions(buffers.width, buffers.height);
       state.displayedIndex = index;
       photoCredit.href = PRESET_IMAGES[index].creditUrl;
       loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
       renderAllCanvases();
+      fadeImageFrame(snapshot);
     }
 
     function updatePresetIndicator() {
@@ -1148,6 +1230,8 @@
      */
     function renderAllCanvases() {
       if (!state.origY) return;
+      // Direct edits and hold-to-compare always show their result immediately.
+      clearImageTransition();
 
       const scaleY  = state.comparing ? 1.0 : state.yLevel / 100;
       const scaleCb = state.comparing ? 1.0 : state.cbLevel / 100;
